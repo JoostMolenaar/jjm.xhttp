@@ -1,7 +1,9 @@
 NAME = xhttp
 
-PIP_NAME = xhttp
+PIP_NAME = jjm.xhttp
 PIP_REQ = requirements.txt
 
-MAIN = xhttp.test
+MAIN ?= jjm.xhttp.test
 
+PKG_BASE = file:///home/joost/git
+PKG = jjm jjm.xml

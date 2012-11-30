@@ -7,51 +7,116 @@ TARGET = /srv/$(NAME)
 TARGET_USER ?= www-data
 TARGET_GROUP ?= www-data
 
-DEPLOY_WEB = $(ENV)/web
-DEPLOY_CONF = $(ENV)/conf
-
-SRC = file://$(shell pwd)
+QUIET ?= --quiet
 
 PIP_CACHE = .cache
 
+SITE_PACKAGES = $(ENV)/lib/python2.7/site-packages
+
 .PHONY: run
 
-run: runtime
-	$(ENV)/bin/pip uninstall $(PIP_NAME) --yes --quiet || true
-	$(ENV)/bin/python -m $(MAIN)
+#
+# run the code
+#
 
-run-pkg: deploy
-	$(ENV)/bin/pip install $(SRC) 
+test: runtime-test
 	cd $(ENV) ; bin/python -m $(MAIN)
 
-deploy-live: deploy
-	virtualenv --relocatable $(ENV) > /dev/null
-	sudo chown -R $(TARGET_USER).$(TARGET_GROUP) $(ENV)
+unittest:
+	cd tests ; ../$(ENV)/bin/python -m unittest discover
+
+coverage:
+	@rm -rf tests/htmlcov
+	@cd tests ; ../$(ENV)/bin/coverage erase
+	-cd tests ; ../$(ENV)/bin/coverage run --branch -m unittest discover
+	cd tests ; ../$(ENV)/bin/coverage report
+	@cd tests ; ../$(ENV)/bin/coverage html
+
+continuous:
+	inotifywait -r . -q -m -e CLOSE_WRITE | grep --line-buffered '^.*\.py$$' | while read line; do clear; date; echo $$line; echo; make coverage; done
+
+run: runtime-live
+	cd $(ENV) ; bin/python -m $(MAIN)
+
+#
+# deploy
+#
+
+deploy: runtime-live
+	cp -r $(ENV) staging
+	virtualenv --relocatable staging $(QUIET) >/dev/null
+	sudo chown -R $(TARGET_USER).$(TARGET_GROUP) staging
 	sudo rm -rf $(TARGET)
-	sudo mv $(ENV) $(TARGET)
+	sudo mv staging $(TARGET)
 
-deploy: runtime deploy-code deploy-web deploy-conf touch-conf
+#
+# runtime
+#
 
-runtime: $(ENV)
+runtime-live: $(ENV) deploy-pkgs unlink-code unlink-data deploy-code deploy-data
 
-$(ENV):
-	virtualenv $(ENV) --quiet
-	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) 'distribute>=0.6.30' --quiet
-	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) --requirement $(PIP_REQ) --quiet
+runtime-test: $(ENV) deploy-pkgs undeploy-code undeploy-data link-code link-data
+
+$(ENV): 
+	virtualenv $(ENV) $(QUIET)
+	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) 'distribute>=0.6.30' $(QUIET)
+	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) --requirement $(PIP_REQ) $(QUIET)
+
+#
+# packages
+#
+
+deploy-pkgs: $(addprefix $(ENV)/lib/python2.7/site-packages/.egg-,$(PKG))
+
+$(ENV)/lib/python2.7/site-packages/.egg-%:
+	$(ENV)/bin/pip install --upgrade $(PKG_BASE)/$* $(QUIET)
+	@find $(ENV) -name top_level.txt -path '*$*-*' -exec sh -c 'echo $* > {}' ';'
+	@touch $@
+
+#
+# code
+#
 
 deploy-code:
-	$(ENV)/bin/pip install $(SRC) --quiet
+	$(ENV)/bin/pip install --upgrade $(PKG_BASE)/$(PIP_NAME) $(QUIET)
+	@find $(ENV) -name top_level.txt -path '*$(PIP_NAME)-*' -exec sh -c 'echo $(PIP_NAME) > {}' ';'
 
-deploy-web:
-	@rm -rf $(DEPLOY_WEB)
-	cp -r web $(DEPLOY_WEB)
+undeploy-code:
+	$(ENV)/bin/pip uninstall --yes $(PIP_NAME) $(QUIET) 2>&1 1>/dev/null || true
 
-deploy-conf:
-	@rm -rf $(DEPLOY_CONF)
-	cp -r conf $(DEPLOY_CONF)
+link-code:
+	ln -snf $(shell pwd)/$(subst .,/,$(PIP_NAME)) $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME))
 
-touch-conf:
-	ls $(DEPLOY_CONF)/uwsgi/* > /dev/null 2>&1 && touch $(DEPLOY_CONF)/uwsgi/* || true
+unlink-code:
+	@test -L $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME)) && rm $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME)) || true
+
+#
+# data
+#
+
+deploy-data: $(addprefix deploy-dir-,$(STATIC_DIRS))
+
+undeploy-data: $(addprefix undeploy-dir-,$(STATIC_DIRS))
+
+deploy-dir-%:
+	cp -r $* $(ENV)
+
+undeploy-dir-%:
+	@rm -rf $(ENV)/$*
+
+link-data: $(addprefix link-dir-,$(STATIC_DIRS))
+
+unlink-data: $(addprefix unlink-dir-,$(STATIC_DIRS))
+
+link-dir-%:
+	ln -snf $(shell pwd)/$(subst link-dir-,,$@) $(ENV)
+
+unlink-dir-%:
+	@test -L $(ENV)/$* && rm -f $(ENV)/$* || true
+
+#
+# clean
+#
 
 clean:
 	rm -rf $(ENV)
@@ -59,7 +124,4 @@ clean:
 really-clean: clean
 	rm -rf $(PIP_CACHE)
 
-# - rename web to static
-# - extract xml from core
-# - extract sh from core
-# - make repo's relative or something ... referring to file:///home/joost/git/... is not useful in other situations
+

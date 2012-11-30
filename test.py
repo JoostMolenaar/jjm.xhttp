@@ -4,9 +4,7 @@ import httplib
 import re
 import urllib
 
-import core
-
-import xhttp
+from jjm import xhttp
 
 # wsgi
 def hello_world_1(env, start_response):
@@ -111,8 +109,27 @@ class TestRouter(xhttp.Router):
 app = xhttp.wsgi_app(TestRouter())
 
 if __name__ == "__main__":
+    def run_server(app):
+        def fix_wsgiref(app):
+            def fixed_app(request, start_response):
+                if 'REQUEST_URI' not in request:
+                    request['REQUEST_URI'] = request['PATH_INFO']
+                    if request['QUERY_STRING']:
+                        request['REQUEST_URI'] += '?'
+                        request['REQUEST_URI'] += request['QUERY_STRING']
+                import os
+                request['DOCUMENT_ROOT'] = os.getcwd()
+                return app(request, start_response)
+            return fixed_app
 
-    core.run_server(app)
+        app = fix_wsgiref(app)
+
+        print 'Serving on port 8000'
+        import wsgiref.simple_server
+        httpd = wsgiref.simple_server.make_server('', 8000, app)
+        httpd.serve_forever()
+
+    run_server(app)
 
     #m = xhttp.qlist("application/xml+xhtml;q=0.9, text/html")
     #m = xhttp.qlist("text/html;q=0.9,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.8,*/*;q=0.1,image/*;q=0.2")

@@ -3,8 +3,11 @@
 import httplib
 import re
 import urllib
+import json
 
 import httplib as status
+
+from .. import xml as xml
 
 # TODO : extract core.xml
 # TODO : extract core.run_server
@@ -30,19 +33,21 @@ class decorator(object):
 # http_qlist 
 # 
 
-class http_qlist(list):
+class http_qlist(object):
     def __init__(self, s):
         try: 
-            # XXX evil & has bugs & loses round trip 
             items = re.split(r"\s*,\s*", s.lower())
             items = [ re.split(r"\s*;\s*", item) for item in items ]
             items = [ t if len(t) == 2 else (t + ["q=1.0"]) for t in items ]
             items = [ (m, q.split('=')[1]) for (m, q) in items ] 
             items = [ (float(q), i, m) for (i, (m, q)) in enumerate(items) ]
-            items = sorted(items, key=lambda (q, i, v): (1-q, i, v))
-            super(http_qlist, self).__init__(v  for (_, _, v) in items)
+            self.items = sorted(items, key=lambda (q, i, v): (1-q, i, v))
         except:
-            super(http_qlist, self).__init__([])
+            self.items = []
+
+    def __str__(self):
+        return ",".join((v + (";q={0}".format(q) if q != 1.0 else ""))
+                        for (q, i, v) in sorted(self.items, key=lambda (q, i, v): i))
 
     def negotiate(self, keys):
         for v in self:
@@ -50,16 +55,20 @@ class http_qlist(list):
                 return v
 
     def negotiate_mime(self, keys):
-        for v in self:
+        for (_, _, v) in self.items:
+            # match anything
             if (v == "*/*") and keys:
                 return keys[0]
+            # match exactly
             for k in keys:
                 if k == v:
                     return k
+            # match partially
             for k in keys:
                 s = k.split("/")[0] + "/*"
                 if s == v:
                     return k
+        return None
 
 #
 # @wsgi_app
@@ -246,11 +255,10 @@ def custom_negotiate(serializers):
                 return { "x-status": httplib.NOT_ACCEPTABLE }
     return negotiate
 
-import core
 negotiate = custom_negotiate({ 
-    "application/xml"       : lambda content: core.xml.serialize_ws(content).encode("utf8"),
-    "application/xhtml+xml" : lambda content: core.xml.serialize_ws(content).encode("utf8"),
-    "text/html"             : lambda content: core.xml.serialize_ws(content).encode("utf8"),
+    "application/xml"       : lambda content: xml.serialize_ws(content).encode("utf8"),
+    "application/xhtml+xml" : lambda content: xml.serialize_ws(content).encode("utf8"),
+    "text/html"             : lambda content: xml.serialize_ws(content).encode("utf8"),
     "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, indent=4)
 })
 
