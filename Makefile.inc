@@ -7,3 +7,6 @@ MAIN ?= jjm.xhttp.test
 
 PKG_BASE = file:///home/joost/git
 PKG = jjm jjm.xml
+
+server:
+	cd $(ENV) ; bin/python -m jjm.xhttp.test

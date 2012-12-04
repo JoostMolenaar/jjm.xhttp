@@ -27,10 +27,10 @@ unittest:
 
 coverage:
 	@rm -rf tests/htmlcov
-	@cd tests ; ../$(ENV)/bin/coverage erase
+	cd tests ; ../$(ENV)/bin/coverage erase
 	-cd tests ; ../$(ENV)/bin/coverage run --branch -m unittest discover
 	cd tests ; ../$(ENV)/bin/coverage report
-	@cd tests ; ../$(ENV)/bin/coverage html
+	cd tests ; ../$(ENV)/bin/coverage html
 
 continuous:
 	inotifywait -r . -q -m -e CLOSE_WRITE | grep --line-buffered '^.*\.py$$' | while read line; do clear; date; echo $$line; echo; make coverage; done
