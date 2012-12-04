@@ -235,7 +235,7 @@ class Resource(object):
 
     def OPTIONS(self, req, *a, **k):
         allowed = " ".join(sorted(m for m in self.METHODS if hasattr(self, m)))
-        raise HTTPException(httplib.OK, { "allowed": allowed })
+        raise HTTPException(httplib.OK, { "allowed": allowed, "x-detail": allowed })
 
     def __call__(self, req, *a, **k):
         if not req["x-request-method"] in Resource.METHODS:
@@ -262,7 +262,7 @@ class Router(object):
         for (pattern, handler) in self.dispatch:
             match = pattern.match(path)
             if match:
-                return (handler, [ urllib.unquote(arg) for arg in match.groups() ])
+                return (handler, tuple(urllib.unquote(arg) for arg in match.groups()))
         return (None, None)
 
 
@@ -270,26 +270,17 @@ class Router(object):
         path = request["x-path-info"]
         handler, args = self.find(path)
         if handler:
-            return handler(request, *(a + tuple(args)))
+            return handler(request, *(a + args))
         elif not path.endswith("/"):
             handler, args = self.find(path + "/")
             if handler:
                 if request["x-request-method"] in ["GET", "HEAD"]:
                     location = path + "/"
                     location += ("?" + request["x-query-string"]) if request["x-query-string"] else ""
-                    return {
-                        "x-status"     : httplib.SEE_OTHER,
-                        "x-content"    : "See other: {0}".format(location),
-                        "content-type" : "text/plain",
-                        "location"     : location,
-                    }
-                elif request.method in ["POST", "PUT", "DELETE"]:
+                    raise HTTPException(httplib.SEE_OTHER, { "location": location, "x-detail": location })
+                else:
                     return handler(request, *(a + args))
-        return {
-            "x-status"      : httplib.NOT_FOUND,  
-            "x-content"     : "Not found: {0} {1}".format(request["x-request-method"], request["x-request-uri"]),
-            "content-type"  : "text/plain"
-        }
+        raise HTTPException(httplib.NOT_FOUND, { "x-detail": request["x-request-uri"] })
 
 #
 # @negotiate

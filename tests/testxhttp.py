@@ -115,6 +115,11 @@ class HelloWorld(xhttp.Resource):
             "content-length": 13
         }
 
+    def PUT(self, request):
+        return {
+            "x-status": xhttp.status.NO_CONTENT
+        }
+
 class TestResource(unittest.TestCase):
     def test_get(self):
         app = HelloWorld()
@@ -144,10 +149,10 @@ class TestResource(unittest.TestCase):
             })
         self.assertEqual(ex.exception.response(), {
             "x-status": 200,
-            "x-content": ["OK\n"],
-            "allowed": "GET HEAD OPTIONS",
+            "x-content": ["OK: GET HEAD OPTIONS PUT\n"],
+            "allowed": "GET HEAD OPTIONS PUT",
             "content-type": "text/plain",
-            "content-length": 3
+            "content-length": 25 
         })
 
     def test_head(self):
@@ -216,3 +221,90 @@ class TestResource(unittest.TestCase):
             "content-length": 25 
         })
 
+class HelloWorldRouter(xhttp.Router):
+    def __init__(self):
+        super(HelloWorldRouter, self).__init__(
+            (r'^/hello/$', HelloWorld())
+        )
+
+class TestRouter(unittest.TestCase):
+    def test_not_found(self):
+        app = HelloWorldRouter()
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            response = app({
+                "x-request-method": "GET",
+                "x-request-uri": "/foo",
+                "x-path-info": "/foo",
+                "x-query-string": "",
+                "x-document-root": os.getcwd()
+            })
+        self.assertEqual(ex.exception.response(), {
+            "x-status": 404,
+            "x-content": ["Not Found: /foo\n"],
+            "content-type": "text/plain",
+            "content-length": 16 
+        })
+
+    def test_not_found_2(self):
+        app = HelloWorldRouter()
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            response = app({
+                "x-request-method": "GET",
+                "x-request-uri": "/foo/",
+                "x-path-info": "/foo/",
+                "x-query-string": "",
+                "x-document-root": os.getcwd()
+            })
+        self.assertEqual(ex.exception.response(), {
+            "x-status": 404,
+            "x-content": ["Not Found: /foo/\n"],
+            "content-type": "text/plain",
+            "content-length": 17 
+        })
+
+    def test_found(self):
+        app = HelloWorldRouter()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/hello/",
+            "x-path-info": "/hello/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd()
+        })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 13 
+        })
+
+    def test_redirect_get(self):
+        app = HelloWorldRouter()
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            response = app({
+                "x-request-method": "GET",
+                "x-request-uri": "/hello",
+                "x-path-info": "/hello",
+                "x-query-string": "",
+                "x-document-root": os.getcwd()
+            })
+        self.assertEqual(ex.exception.response(), {
+            "x-status": 303,
+            "x-content": ["See Other: /hello/\n"],
+            "content-type": "text/plain",
+            "content-length": 19,
+            "location": "/hello/"
+        })
+
+    def test_redirect_put(self):
+        app = HelloWorldRouter()
+        response = app({
+            "x-request-method": "PUT",
+            "x-request-uri": "/hello",
+            "x-path-info": "/hello",
+            "x-query-string": "",
+            "x-document-root": os.getcwd()
+        })
+        self.assertEqual(response, {
+            "x-status": 204
+        })
