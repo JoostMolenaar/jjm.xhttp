@@ -24,7 +24,7 @@ def env_2(req, *a, **k):
     def response_generator():
         for k in sorted(req.keys()):
             if k == "x-env": continue
-            yield "{0}: {1}\n".format(k.title(), req[k])
+            yield "{0:40}: {1}\n".format(k.title(), repr(req[k]))
         yield "\n\n"
         for k in sorted(req["x-env"].keys()):
             yield "{0:40} = {1}\n".format(k, repr(req["x-env"][k]))
@@ -92,21 +92,23 @@ class TestRouter(xhttp.Router):
     def debug(self, req, virt_path):
         dump_dict = lambda d: "\n".join("{0:20} = {1}".format(k, repr(d[k])) for k in sorted(d.keys()))
 
-        req['x-path'] = "/" + virt_path 
-        req['x-request-uri'] = req['x-path']
-        if req['x-query']:
-            req['x-request-uri'] += '?' + req['x-query']
+        req['x-path-info'] = "/" + virt_path 
+        req['x-request-uri'] = req['x-path-info']
+        if req['x-query-string']:
+            req['x-request-uri'] += '?' + req['x-query-string']
         res = self(req)
+        content = dump_dict({k:v for k,v in req.items() if k!="x-env"}) \
+            + "\n\n" \
+            + dump_dict(res) \
+            + "\n\n"
         return {
             "x-status": httplib.OK,
-            "x-content": [
-                dump_dict({k:v for k,v in req.items() if k!="x-env"}), 
-                "\n\n", 
-                dump_dict(res), 
-                "\n\n" ],
-            "content-type": "text/plain" }
+            "x-content": [content],
+            "content-type": "text/plain",
+            "content-length": len(content)
+        }
 
-app = xhttp.wsgi_app(TestRouter())
+app = xhttp.xhttp_app(TestRouter())
 
 if __name__ == "__main__":
     def run_server(app):

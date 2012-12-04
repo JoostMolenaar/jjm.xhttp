@@ -4,8 +4,12 @@ import httplib
 import re
 import urllib
 import json
+import datetime
 
 import httplib as status
+
+import dateutil
+import dateutil.parser
 
 from .. import xml as xml
 
@@ -30,10 +34,10 @@ class decorator(object):
     #    return self.func(*a, **k)
 
 #
-# http_qlist 
+# qlist
 # 
 
-class http_qlist(object):
+class qlist(object):
     def __init__(self, s):
         try: 
             items = re.split(r"\s*,\s*", s.lower())
@@ -48,6 +52,9 @@ class http_qlist(object):
     def __str__(self):
         return ",".join((v + (";q={0}".format(q) if q != 1.0 else ""))
                         for (q, i, v) in sorted(self.items, key=lambda (q, i, v): i))
+
+    def __repr__(self):
+        return "{0}({1})".format(type(self).__name__, repr(str(self)))
 
     def negotiate(self, keys):
         for v in self:
@@ -71,10 +78,44 @@ class http_qlist(object):
         return None
 
 #
-# @wsgi_app
+# date
 #
 
-class wsgi_app(decorator):
+class date(object):
+    WEEKDAYS = 'Mon Tue Wed Thu Fri Sat Sun'.split()
+    MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
+    TZ_UTC = dateutil.tz.tzutc()
+
+    def __init__(self, x, tz=TZ_UTC):
+        self.tz = tz 
+        if isinstance(x, str):
+            self.timestamp = self.parse(x)
+        elif isinstance(x, int):
+            self.timestamp = x
+        else:
+            raise ValueError("Unsupported type {0}".format(type(x).__name__))
+
+    def __str__(self):
+        dt = datetime.datetime.utcfromtimestamp(self.timestamp)
+        return "{0}, {1:02} {2} {3} {4:02}:{5:02}:{6:02} GMT".format(
+            date.WEEKDAYS[dt.weekday()], 
+            dt.day,
+            date.MONTHS[dt.month-1],
+            dt.year,
+            dt.hour,
+            dt.minute,
+            dt.second)
+
+    def parse(self, s):
+        dt = dateutil.parser.parse(s).astimezone(date.TZ_UTC)
+        ts = dt - datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=date.TZ_UTC)
+        return int(ts.total_seconds())
+
+#
+# @xhttp_app
+#
+
+class xhttp_app(decorator):
     def __call__(self, environment, start_response):
         request = { name[5:].lower().replace('_', '-'): value 
                     for (name, value) in environment.items() 
@@ -104,19 +145,20 @@ class wsgi_app(decorator):
         return content
 
     PARSERS = {
-        "accept"          : http_qlist,
-        "accept-charset"  : http_qlist,
-        "accept-encoding" : http_qlist,
-        "accept-language" : http_qlist
+        "accept"            : qlist,
+        "accept-charset"    : qlist,
+        "accept-encoding"   : qlist,
+        "accept-language"   : qlist,
+        "if-modified-since" : date
     }
 
     ENVIRONMENT = {
-        "x-document-root" : lambda env: env["DOCUMENT_ROOT"],
-        "x-request-uri"   : lambda env: env["REQUEST_URI"],
-        "x-method"        : lambda env: env["REQUEST_METHOD"],
-        "x-path"          : lambda env: env["PATH_INFO"],
-        "x-query"         : lambda env: env["QUERY_STRING"],
-        "x-env"           : lambda env: env
+        "x-document-root"  : lambda env: env["DOCUMENT_ROOT"],
+        "x-request-uri"    : lambda env: env["REQUEST_URI"],
+        "x-request-method" : lambda env: env["REQUEST_METHOD"],
+        "x-path-info"      : lambda env: env["PATH_INFO"],
+        "x-query-string"   : lambda env: env["QUERY_STRING"],
+        "x-env"            : lambda env: env
     }
         
 #
@@ -124,7 +166,7 @@ class wsgi_app(decorator):
 #
 
 class WSGIAdapter(object):
-    @wsgi_app
+    @xhttp_app
     def __call__(self, *a, **k):
         return super(WSGIAdapter, self)(req, *a, **k)
 
@@ -136,7 +178,7 @@ class as_wsgi_app(type):
     def __new__(cls, name, bases, attrs):
         C = super(as_wsgi_app, cls).__new__(cls, name, bases, attrs)
         C.__call__ = lambda self, *a, **k: super(C, self).__call__(*a, **k)
-        C.__call__ = wsgi_app(C.__call__)
+        C.__call__ = xhttp_app(C.__call__)
         return C
 
 #
@@ -152,6 +194,32 @@ def extended_with(C):
     return extended_with
 
 #
+# class HTTPException
+#
+
+class HTTPException(Exception):
+    def __init__(self, status, headers={}):
+        self.status = status
+        self.headers = headers
+        super(HTTPException, self).__init__(httplib.responses[status])
+
+    def response(self):
+        message = self.message
+        detail = self.headers.pop("x-detail", None)
+        if detail:
+            message += ": "
+            message += detail
+        message += "\n"
+        result = {
+            "x-status": self.status,
+            "x-content": [message],
+            "content-type": "text/plain",
+            "content-length": len(message)
+        }
+        result.update(self.headers)
+        return result
+        
+#
 # class Resource
 #
 
@@ -163,29 +231,19 @@ class Resource(object):
                 del res["x-content"]
             return res
         else:
-            return {
-                "x-status"     : httplib.METHOD_NOT_ALLOWED,
-                "x-content"    : "Method Not Allowed\n\n{0} {1} {2}".format(self.__class__.__name__, req["x-method"], req["x-request-uri"]),
-                "content-type" : "text/plain" }
+            raise HTTPException(httplib.METHOD_NOT_ALLOWED, { "x-detail": "GET" })
 
     def OPTIONS(self, req, *a, **k):
-        allowed = " ".join(m for m in self.__METHODS if hasattr(self, m))
-        return {
-            "x-status"     : httplib.OK,
-            "x-content"    : allowed + "\n",
-            "allowed"      : allowed,
-            "content-type" : "text/plain" }
+        allowed = " ".join(sorted(m for m in self.METHODS if hasattr(self, m)))
+        raise HTTPException(httplib.OK, { "allowed": allowed })
 
     def __call__(self, req, *a, **k):
-        if not req["x-method"] in Resource.METHODS:
-            return { "x-status": httplib.BAD_REQUEST }
-        if hasattr(self, req["x-method"]):
-            return getattr(self, req["x-method"])(req, *a, **k)
+        if not req["x-request-method"] in Resource.METHODS:
+            raise HTTPException(httplib.BAD_REQUEST, { "x-detail": req["x-request-method"] })
+        if hasattr(self, req["x-request-method"]):
+            return getattr(self, req["x-request-method"])(req, *a, **k)
         else:
-            return {
-                "x-status"     : httplib.METHOD_NOT_ALLOWED,
-                "x-content"    : "Method Not Allowed\n\n{0}({1} {2})".format(self.__class__.__name__, req["method"], req["request-uri"]),
-                "content-type" : "text/plain" }
+            raise HTTPException(httplib.METHOD_NOT_ALLOWED, { "x-detail": req["x-request-method"] })
 
     # XXX not very pluggable ------- i could just stick it into request?
     METHODS = "HEAD GET PUT POST DELETE OPTIONS".split()
@@ -209,16 +267,16 @@ class Router(object):
 
 
     def __call__(self, request, *a, **k):
-        path = request["x-path"]
+        path = request["x-path-info"]
         handler, args = self.find(path)
         if handler:
             return handler(request, *(a + tuple(args)))
         elif not path.endswith("/"):
             handler, args = self.find(path + "/")
             if handler:
-                if request["x-method"] in ["GET", "HEAD"]:
+                if request["x-request-method"] in ["GET", "HEAD"]:
                     location = path + "/"
-                    location += ("?" + request["x-query"]) if request["x-query"] else ""
+                    location += ("?" + request["x-query-string"]) if request["x-query-string"] else ""
                     return {
                         "x-status"     : httplib.SEE_OTHER,
                         "x-content"    : "See other: {0}".format(location),
@@ -229,7 +287,7 @@ class Router(object):
                     return handler(request, *(a + args))
         return {
             "x-status"      : httplib.NOT_FOUND,  
-            "x-content"     : "Not found: {0} {1}".format(request["x-method"], request["x-request-uri"]),
+            "x-content"     : "Not found: {0} {1}".format(request["x-request-method"], request["x-request-uri"]),
             "content-type"  : "text/plain"
         }
 

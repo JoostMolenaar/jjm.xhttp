@@ -1,3 +1,3 @@
 distribute>=0.6.30
 coverage
-
+python-dateutil
