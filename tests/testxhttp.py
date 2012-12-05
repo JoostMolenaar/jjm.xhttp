@@ -28,7 +28,7 @@ class TestDecorator(unittest.TestCase):
             @TestDecorator.dec
             def spam(self, x):
                 return 4 * x
-        # Can't really find a real-world scenario where the 2nd argument to __get__ is None!
+        # XXX Can't really find a real-world scenario where the 2nd argument to __get__ is None!
         obj = C() 
         spam = C.__dict__["spam"].__get__(obj, None)
         self.assertEqual(spam(obj, 23), 92)
@@ -163,7 +163,7 @@ class HelloWorld(xhttp.Resource):
             "x-status": xhttp.status.OK,
             "x-content": ["Hello, world!\n"],
             "content-type": "text/plain",
-            "content-length": 13
+            "content-length": 14
         }
 
     def PUT(self, request):
@@ -185,7 +185,7 @@ class TestResource(unittest.TestCase):
             "x-status": 200,
             "x-content": ["Hello, world!\n"],
             "content-type": "text/plain",
-            "content-length": 13
+            "content-length": 14
         })
 
     def test_options(self):
@@ -218,7 +218,7 @@ class TestResource(unittest.TestCase):
         self.assertEqual(response, {
             "x-status": 200,
             "content-type": "text/plain",
-            "content-length": 13
+            "content-length": 14
         })
 
     def test_head_with_no_get(self):
@@ -326,7 +326,7 @@ class TestRouter(unittest.TestCase):
             "x-status": 200,
             "x-content": ["Hello, world!\n"],
             "content-type": "text/plain",
-            "content-length": 13 
+            "content-length": 14 
         })
 
     def test_redirect_get(self):
@@ -359,3 +359,44 @@ class TestRouter(unittest.TestCase):
         self.assertEqual(response, {
             "x-status": 204
         })
+
+class HelloContentNegotiatingWorld(xhttp.Resource):
+    @xhttp.negotiate
+    def GET(self, req):
+        greeting = { 
+            "message": "Hello, world!" 
+        }
+        greeting_view = {
+            "text/plain"            : lambda m: m["message"] + "\n",
+            "text/html"             : lambda m: ["p", m["message"]],
+            "application/json"      : lambda m: m,
+            "application/xhtml+xml" : lambda m: ["p", ("xmlns", "http://www.w3.org/1999/xhtml"), m["message"], req["x-path"]],
+            "application/xml"       : lambda m: ["message", m["message"]] 
+        }
+        result = {
+            "x-status"       : 200,
+            "x-content"      : greeting,
+            "x-content-view" : greeting_view
+        }
+        return result
+
+class TestNegotiate(unittest.TestCase):
+    def test_text_plain(self):
+        app = HelloContentNegotiatingWorld()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/x",
+            "x-path-info": "/x",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "accept": xhttp.qlist("text/plain")
+        })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14
+        })
+
+if __name__ == '__main__':
+    unittest.main()
