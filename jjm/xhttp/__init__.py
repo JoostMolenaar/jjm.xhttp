@@ -205,10 +205,9 @@ class HTTPException(Exception):
 
     def response(self):
         message = self.message
-        detail = self.headers.pop("x-detail", None)
-        if detail:
+        if "x-detail" in self.headers:
             message += ": "
-            message += detail
+            message += self.headers.pop("x-detail")
         message += "\n"
         result = {
             "x-status": self.status,
