@@ -285,7 +285,7 @@ class Router(object):
 def custom_negotiate(serializers):
     class negotiate(decorator):
         def __call__(self, req, *a, **k):
-            res = self.func(req, *a, **k)
+            res = self.func(req, *a, **k)   
             content_view = res.pop("x-content-view")
             content_type = req["accept"].negotiate_mime(content_view.keys())
             if content_type:
@@ -295,16 +295,18 @@ def custom_negotiate(serializers):
                 if content_type in serializers:
                     serialize_obj = serializers[content_type]
                     res["x-content"] = serialize_obj(res["x-content"])
+                res["content-length"] = sum(len(chunk) for chunk in res["x-content"])
                 return res
             else:
                 return { "x-status": httplib.NOT_ACCEPTABLE }
     return negotiate
 
 negotiate = custom_negotiate({ 
-    "application/xml"       : lambda content: xml.serialize_ws(content).encode("utf8"),
-    "application/xhtml+xml" : lambda content: xml.serialize_ws(content).encode("utf8"),
-    "text/html"             : lambda content: xml.serialize_ws(content).encode("utf8"),
-    "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, indent=4)
+    "application/xml"       : lambda content: [xml.serialize_ws(content).encode("utf8")],
+    "application/xhtml+xml" : lambda content: [xml.serialize_ws(content).encode("utf8")],
+    "text/html"             : lambda content: [xml.serialize_ws(content).encode("utf8")],
+    "application/json"      : lambda content: [json.dumps(obj=content, sort_keys=1, indent=4)],
+    "text/plain"            : lambda content: [content]
 })
 
 #
