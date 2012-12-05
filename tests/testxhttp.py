@@ -3,6 +3,36 @@ import os
 
 from jjm import xhttp
 
+class TestDecorator(unittest.TestCase):
+    class dec(xhttp.decorator):
+        def __call__(self, *a, **k):
+            return self.func(*a, **k)
+
+    def test_func(self):
+        @TestDecorator.dec
+        def albatross(x):
+            return 2 * x
+        self.assertEqual(albatross(23), 46)
+
+    def test_method(self):
+        class Albatross(object):
+            @TestDecorator.dec
+            def spam(self, x):
+                return 3 * x
+        albatross = Albatross()
+        self.assertEqual(albatross.spam(23), 69)
+
+        
+    def test_func_path(self):
+        class C(object):
+            @TestDecorator.dec
+            def spam(self, x):
+                return 4 * x
+        # Can't really find a real-world scenario where the 2nd argument to __get__ is None!
+        obj = C() 
+        spam = C.__dict__["spam"].__get__(obj, None)
+        self.assertEqual(spam(obj, 23), 92)
+
 class TestQlist(unittest.TestCase):
     def test_parse(self):
         qlist = xhttp.qlist("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
