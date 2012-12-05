@@ -30,9 +30,6 @@ class decorator(object):
         new_func = self.func.__get__(obj, cls)
         return self.__class__(new_func)
 
-    #def __call__(self, *a, **k):
-    #    return self.func(*a, **k)
-
 #
 # qlist
 # 
