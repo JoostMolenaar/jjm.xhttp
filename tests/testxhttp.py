@@ -86,6 +86,27 @@ def test_environ(method, request_uri, headers):
     result.update({ "HTTP_" + (k.upper().replace("-", "_")): v for (k, v) in headers.items() })
     return result
 
+class TestHTTPException(unittest.TestCase):
+    def test_without_detail(self):
+        ex = xhttp.HTTPException(xhttp.status.BAD_REQUEST)
+        self.assertEqual(str(ex), "Bad Request")
+        self.assertEqual(ex.response(), {
+            "x-status": 400,
+            "x-content": ["Bad Request\n"],
+            "content-type": "text/plain",
+            "content-length": 12
+        })
+
+    def test_with_detail(self):
+        ex = xhttp.HTTPException(xhttp.status.BAD_REQUEST, { "x-detail": "Just because" })
+        self.assertEqual(str(ex), "Bad Request")
+        self.assertEqual(ex.response(), {
+            "x-status": 400,
+            "x-content": ["Bad Request: Just because\n"],
+            "content-type": "text/plain",
+            "content-length": 26
+        })
+
 class TestXhttpAppDecorator(unittest.TestCase):
     def test_1(self):
         @xhttp.xhttp_app
