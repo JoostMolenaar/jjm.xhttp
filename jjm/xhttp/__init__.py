@@ -310,6 +310,25 @@ negotiate = custom_negotiate({
 })
 
 #
+# @catcher
+#
+
+class catcher(decorator):
+    def __call__(self, req, *a, **k):
+        try:
+            try:
+                return self.func(req, *a, **k)
+            except Exception as e:
+                if isinstance(e, HTTPException):
+                    raise
+                detail = type(e).__name__
+                detail += "\n\n"
+                detail += e.message
+                raise HTTPException(httplib.INTERNAL_SERVER_ERROR, { "x-detail": detail })
+        except HTTPException as e:
+            return e.response()
+
+#
 # @get
 #
 
