@@ -370,7 +370,7 @@ class HelloContentNegotiatingWorld(xhttp.Resource):
             "text/plain"            : lambda m: m["message"] + "\n",
             "text/html"             : lambda m: ["p", m["message"]],
             "application/json"      : lambda m: m,
-            "application/xhtml+xml" : lambda m: ["p", ("xmlns", "http://www.w3.org/1999/xhtml"), m["message"], req["x-path"]],
+            "application/xhtml+xml" : lambda m: ["p", ("xmlns", "http://www.w3.org/1999/xhtml"), m["message"]],
             "application/xml"       : lambda m: ["message", m["message"]] 
         }
         result = {
@@ -381,12 +381,30 @@ class HelloContentNegotiatingWorld(xhttp.Resource):
         return result
 
 class TestNegotiate(unittest.TestCase):
+    def test_not_acceptable(self):
+        app = HelloContentNegotiatingWorld()
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            response = app({
+                "x-request-method": "GET",
+                "x-request-uri": "/",
+                "x-path-info": "/",
+                "x-query-string": "",
+                "x-document-root": os.getcwd(),
+                "accept": xhttp.qlist("image/png")
+            })
+        self.assertEqual(ex.exception.response(), {
+            "x-status": 406,
+            "x-content": ["Not Acceptable\n"],
+            "content-type": "text/plain",
+            "content-length": 15
+        })
+
     def test_text_plain(self):
         app = HelloContentNegotiatingWorld()
         response = app({
             "x-request-method": "GET",
-            "x-request-uri": "/x",
-            "x-path-info": "/x",
+            "x-request-uri": "/",
+            "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
             "accept": xhttp.qlist("text/plain")
@@ -397,6 +415,189 @@ class TestNegotiate(unittest.TestCase):
             "content-type": "text/plain",
             "content-length": 14
         })
+
+    def test_text_html(self):
+        app = HelloContentNegotiatingWorld()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "accept": xhttp.qlist("text/html")
+        })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["<p>Hello, world!</p>"],
+            "content-type": "text/html",
+            "content-length": 20
+        })
+
+    def test_application_json(self):
+        app = HelloContentNegotiatingWorld()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "accept": xhttp.qlist("application/json")
+        })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["{\"message\": \"Hello, world!\"}"],
+            "content-type": "application/json",
+            "content-length": 28
+        })
+
+    def test_application_xhtml_xml(self):
+        app = HelloContentNegotiatingWorld()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "accept": xhttp.qlist("application/xhtml+xml")
+        })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["<p xmlns=\"http://www.w3.org/1999/xhtml\">Hello, world!</p>"],
+            "content-type": "application/xhtml+xml",
+            "content-length": 57
+        })
+
+    def test_application_xml(self):
+        app = HelloContentNegotiatingWorld()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "accept": xhttp.qlist("application/xml")
+        })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["<message>Hello, world!</message>"],
+            "content-type": "application/xml",
+            "content-length": 32
+        })
+
+class ExceptionalResource(xhttp.Resource):
+    @xhttp.catcher
+    def GET(self, req):
+        raise Exception("foo")
+
+    @xhttp.catcher
+    def PUT(self, req):
+        location = "/somewhere-else"
+        raise xhttp.HTTPException(xhttp.status.SEE_OTHER, { "location": location, "x-detail": location })
+
+class TestCatcher(unittest.TestCase):
+    def test_exception(self):
+        app = ExceptionalResource()
+        response = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+        })
+        self.assertEqual(response, {
+            "x-status": 500,
+            "x-content": ["Internal Server Error: Exception\n\nfoo\n"],
+            "content-type": "text/plain",
+            "content-length": 38
+        }) 
+
+    def test_http_exception(self):
+        app = ExceptionalResource()
+        response = app({
+            "x-request-method": "PUT",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+        })
+        self.assertEqual(response, {
+            "x-status": 303,
+            "x-content": ["See Other: /somewhere-else\n"],
+            "content-type": "text/plain",
+            "content-length": 27,
+            "location": "/somewhere-else"
+        })
+        self.assertEqual(sum(len(chunk) for chunk in response["x-content"]), response["content-length"])
+
+class TestGet(unittest.TestCase):
+    def test_present(self):
+        @xhttp.get({ "required": "^spam$",
+                     "optional?": "^albatross$",
+                     "list1+": "^\d+$",
+                     "list2*": "^[a-z]+$" })
+        def app(req):
+            self.assertEquals(req["x-get"], {
+                "required": "spam",
+                "optional": "albatross",
+                "list1": ["23", "46"],
+                "list2": ["aa"]
+            })
+        app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=46&list2=aa" }) 
+
+    def test_missing_single(self):
+        @xhttp.get({ "required": "^spam$",
+                     "optional?": "^albatross$",
+                     "list1+": "^\d+$",
+                     "list2*": "^[a-z]+$" })
+        def app(req):
+            pass
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "x-query-string": "optional=albatross&list1=23&list1=46&list2=aa" }) 
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'required'" })
+
+    def test_missing_multiple(self):
+        @xhttp.get({ "required": "^spam$",
+                     "optional?": "^albatross$",
+                     "list1+": "^\d+$",
+                     "list2*": "^[a-z]+$" })
+        def app(req):
+            pass
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "x-query-string": "required=spam&optional=albatross&list2=aa" }) 
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'list1'" })
+
+    def test_forbidden_parameter(self):
+        @xhttp.get({ "foo": "^bar$" })
+        def app(req):
+            pass
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "x-query-string": "foo=bar&spam=albatross" })
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'spam' is not allowed" })
+
+    def test_wrong_value(self):
+        @xhttp.get({ "required": "^spam$",
+                     "optional?": "^albatross$",
+                     "list1+": "^\d+$",
+                     "list2*": "^[a-z]+$" })
+        def app(req):
+            pass
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" }) 
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "Bad value 'ALBATROSS' for GET parameter 'list1'" })
+
+    def test_utf8(self):
+        @xhttp.get({ "message": "^.+$" })
+        def app(req):
+            self.assertEqual(req["x-get"]["message"], u"hej, v\u00e4rld")
+        app({ "x-query-string": "message=hej%2C%20v%C3%A4rld" })
 
 if __name__ == '__main__':
     unittest.main()
