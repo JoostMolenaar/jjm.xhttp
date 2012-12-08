@@ -298,14 +298,14 @@ def custom_negotiate(serializers):
                 res["content-length"] = sum(len(chunk) for chunk in res["x-content"])
                 return res
             else:
-                return { "x-status": httplib.NOT_ACCEPTABLE }
+                raise HTTPException(httplib.NOT_ACCEPTABLE)
     return negotiate
 
 negotiate = custom_negotiate({ 
-    "application/xml"       : lambda content: [xml.serialize_ws(content).encode("utf8")],
-    "application/xhtml+xml" : lambda content: [xml.serialize_ws(content).encode("utf8")],
-    "text/html"             : lambda content: [xml.serialize_ws(content).encode("utf8")],
-    "application/json"      : lambda content: [json.dumps(obj=content, sort_keys=1, indent=4)],
+    "application/xml"       : lambda content: [xml.serialize(content).encode("utf8")],
+    "application/xhtml+xml" : lambda content: [xml.serialize(content).encode("utf8")],
+    "text/html"             : lambda content: [xml.serialize(content).encode("utf8")],
+    "application/json"      : lambda content: [json.dumps(obj=content, sort_keys=1)],
     "text/plain"            : lambda content: [content]
 })
 
