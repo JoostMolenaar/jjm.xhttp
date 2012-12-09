@@ -557,6 +557,20 @@ class TestGet(unittest.TestCase):
         self.assertEquals(ex.exception.message, "Bad Request")
         self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'required'" })
 
+    def test_multiple_optional(self):
+        @xhttp.get({ "required": "^spam$",
+                     "optional?": "^albatross$",
+                     "list1+": "^\d+$",
+                     "list2*": "^[a-z]+$" })
+        def app(req):
+            pass
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "x-query-string": "required=required&optional=albatross&optional=albatross&list1=23&list1=46&list2=aa" }) 
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'optional'" })
+
+
     def test_missing_multiple(self):
         @xhttp.get({ "required": "^spam$",
                      "optional?": "^albatross$",

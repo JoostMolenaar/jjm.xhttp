@@ -353,6 +353,8 @@ def get(variables):
             for (key, (cardinality, _)) in variables.items():
                 if cardinality == "1" and len(result[key]) != 1:
                     raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Incorrect number of occurrences for GET parameter {0!r}".format(key) })
+                elif cardinality == "?" and len(result[key]) > 1:
+                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Incorrect number of occurrences for GET parameter {0!r}".format(key) })
                 elif cardinality == "+" and len(result[key]) == 0:
                     raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Incorrect number of occurrences for GET parameter {0!r}".format(key) })
 
