@@ -1,6 +1,8 @@
 import unittest
 import os
 
+from StringIO import StringIO
+
 from jjm import xhttp
 
 class TestDecorator(unittest.TestCase):
@@ -608,6 +610,29 @@ class TestGet(unittest.TestCase):
         def app(req):
             self.assertEquals(req["x-get"]["message"], u"hej, v\ufffdrld")
         app({ "x-query-string": "message=hej%2C%20v%E4rld" })
+
+class TestPost(unittest.TestCase):
+    def test_post(self):
+        @xhttp.post({ "spam": "^albatross$" })
+        def app(req):
+            self.assertEquals(req["x-post"]["spam"], "albatross")
+        content = "spam=albatross"
+        app({
+            "content-length": len(content),
+            "x-wsgi-input": StringIO(content)
+        })
+
+    def test_post_with_bad_content_length(self):
+        app = xhttp.post({ "spam": "^albatross$" })(None)
+        content = "spam=albatross"
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({
+                "content-length": "evil!",
+                "x-wsgi-input": StringIO(content)
+            })
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "POST parameter 'spam' should occur exactly once" })
 
 if __name__ == '__main__':
     unittest.main()

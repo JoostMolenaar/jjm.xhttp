@@ -151,11 +151,12 @@ class xhttp_app(decorator):
     }
 
     ENVIRONMENT = {
-        "x-document-root"  : lambda env: env["DOCUMENT_ROOT"],
-        "x-request-uri"    : lambda env: env["REQUEST_URI"],
-        "x-request-method" : lambda env: env["REQUEST_METHOD"],
-        "x-path-info"      : lambda env: env["PATH_INFO"],
-        "x-query-string"   : lambda env: env["QUERY_STRING"],
+        "x-document-root"  : lambda env: env.get("DOCUMENT_ROOT", None),
+        "x-request-uri"    : lambda env: env.get("REQUEST_URI", None),
+        "x-request-method" : lambda env: env.get("REQUEST_METHOD", None),
+        "x-path-info"      : lambda env: env.get("PATH_INFO", None),
+        "x-query-string"   : lambda env: env.get("QUERY_STRING", None),
+        "x-wsgi-input"     : lambda env: env.get("wsgi.input", None),
         "x-env"            : lambda env: env
     }
         
@@ -343,7 +344,7 @@ def _parse_x_www_form_urlencoded(parsertype, variables):
 
     def parse(s):
         items = [ item.split("=", 2) for item in s.split("&") ]
-        result = { key: list(v[1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
+        result = { key: list(v[-1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
 
         for (key, _) in variables.items():
             if key not in result:
@@ -389,10 +390,17 @@ def get(variables):
 # @post
 #
 
-def post(**variables):
-    class post(decorator):
-        pass
-    return post
+def post(variables):
+    parser = _parse_x_www_form_urlencoded("POST", variables)
+    class post_dec(decorator):
+        def __call__(self, req, *a, **k):
+            try:
+                content_length = int(req["content-length"])
+            except:
+                content_length = 0
+            req["x-post"] = parser(req["x-wsgi-input"].read(content_length))
+            return self.func(req, *a, **k)
+    return post_dec
 
 #
 # @last_modified
