@@ -333,7 +333,7 @@ class catcher(decorator):
 # @get
 #
 
-def get(variables):
+def _parse_x_www_form_urlencoded(parsertype, variables):
     for (key, pattern) in variables.items():
         cardinality = "1"
         if key[-1] in ["?", "+", "*"]:
@@ -341,42 +341,48 @@ def get(variables):
             key, cardinality = key[:-1], key[-1]
         variables[key] = (cardinality, pattern)
 
+    def parse(s):
+        items = [ item.split("=", 2) for item in s.split("&") ]
+        result = { key: list(v[1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
+
+        for (key, _) in variables.items():
+            if key not in result:
+                result[key] = []
+
+        for (key, (cardinality, _)) in variables.items():
+            if cardinality == "1" and len(result[key]) != 1:
+                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} should occur exactly once".format(parsertype, key) })
+            elif cardinality == "?" and len(result[key]) > 1:
+                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} should occur at most once".format(parsertype, key) })
+            elif cardinality == "+" and len(result[key]) < 1:
+                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} should occur at least once".format(parsertype, key) })
+
+        for (key, (_, pattern)) in variables.items():
+            for value in result[key]:
+                if not re.match(pattern, value):
+                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} has bad value {2!r}".format(parsertype, key, value) })
+
+        for (key, values) in result.items():
+            if key not in variables:
+                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Unknown {0} parameter {1!r}".format(parsertype, key) })
+
+        for (key, values) in result.items():
+            result[key] = [ urllib.unquote(value).decode("utf8", errors="replace") for value in values ]
+
+        for (key, (cardinality, _)) in variables.items():
+            if cardinality in ["1", "?"]:
+                result[key] = result[key][0] if result[key] else None
+
+        return result
+
+    return parse
+
+def get(variables):
+    parser = _parse_x_www_form_urlencoded("GET", variables)
     class get_dec(decorator):
         def __call__(self, req, *a, **k):
-            items = [ item.split("=", 2) for item in req["x-query-string"].split("&") ]
-            result = { key: list(v[1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
-
-            for (key, _) in variables.items():
-                if key not in result:
-                    result[key] = []
-
-            for (key, (cardinality, _)) in variables.items():
-                if cardinality == "1" and len(result[key]) != 1:
-                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Incorrect number of occurrences for GET parameter {0!r}".format(key) })
-                elif cardinality == "?" and len(result[key]) > 1:
-                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Incorrect number of occurrences for GET parameter {0!r}".format(key) })
-                elif cardinality == "+" and len(result[key]) == 0:
-                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Incorrect number of occurrences for GET parameter {0!r}".format(key) })
-
-            for (key, (_, pattern)) in variables.items():
-                for value in result[key]:
-                    if not re.match(pattern, value):
-                        raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Bad value {0!r} for GET parameter {1!r}".format(value, key) })
-
-            for (key, values) in result.items():
-                if key not in variables:
-                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "GET parameter {0!r} is not allowed".format(key) })
-
-            for (key, values) in result.items():
-                result[key] = [ urllib.unquote(value).decode('utf8') for value in values ]
-
-            for (key, (cardinality, _)) in variables.items():
-                if cardinality in ["1", "?"]:
-                    result[key] = result[key][0] if result[key] else None
-
-            req["x-get"] = result
+            req["x-get"] = parser(req["x-query-string"])
             return self.func(req, *a, **k)
-                
     return get_dec
 
 #

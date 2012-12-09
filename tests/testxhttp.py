@@ -545,73 +545,69 @@ class TestGet(unittest.TestCase):
         app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=46&list2=aa" }) 
 
     def test_missing_single(self):
-        @xhttp.get({ "required": "^spam$",
+        app = xhttp.get({ "required": "^spam$",
                      "optional?": "^albatross$",
                      "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })
-        def app(req):
-            pass
+                     "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "optional=albatross&list1=23&list1=46&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
-        self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'required'" })
+        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'required' should occur exactly once" })
 
     def test_multiple_optional(self):
-        @xhttp.get({ "required": "^spam$",
+        app = xhttp.get({ "required": "^spam$",
                      "optional?": "^albatross$",
                      "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })
-        def app(req):
-            pass
+                     "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "required=required&optional=albatross&optional=albatross&list1=23&list1=46&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
-        self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'optional'" })
+        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'optional' should occur at most once" })
 
 
     def test_missing_multiple(self):
-        @xhttp.get({ "required": "^spam$",
+        app = xhttp.get({ "required": "^spam$",
                      "optional?": "^albatross$",
                      "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })
-        def app(req):
-            pass
+                     "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "required=spam&optional=albatross&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
-        self.assertEquals(ex.exception.headers, { "x-detail": "Incorrect number of occurrences for GET parameter 'list1'" })
+        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'list1' should occur at least once" })
 
     def test_forbidden_parameter(self):
-        @xhttp.get({ "foo": "^bar$" })
-        def app(req):
-            pass
+        app = xhttp.get({ "foo": "^bar$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "foo=bar&spam=albatross" })
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
-        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'spam' is not allowed" })
+        self.assertEquals(ex.exception.headers, { "x-detail": "Unknown GET parameter 'spam'" })
 
     def test_wrong_value(self):
-        @xhttp.get({ "required": "^spam$",
+        app = xhttp.get({ "required": "^spam$",
                      "optional?": "^albatross$",
                      "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })
-        def app(req):
-            pass
+                     "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
-        self.assertEquals(ex.exception.headers, { "x-detail": "Bad value 'ALBATROSS' for GET parameter 'list1'" })
+        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'list1' has bad value 'ALBATROSS'" })
 
     def test_utf8(self):
         @xhttp.get({ "message": "^.+$" })
         def app(req):
             self.assertEqual(req["x-get"]["message"], u"hej, v\u00e4rld")
         app({ "x-query-string": "message=hej%2C%20v%C3%A4rld" })
+
+    def test_bad_utf8(self):
+        @xhttp.get({ "message": "^.+$" })
+        def app(req):
+            self.assertEquals(req["x-get"]["message"], u"hej, v\ufffdrld")
+        app({ "x-query-string": "message=hej%2C%20v%E4rld" })
 
 if __name__ == '__main__':
     unittest.main()
