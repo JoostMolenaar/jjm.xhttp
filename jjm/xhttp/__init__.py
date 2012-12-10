@@ -414,11 +414,21 @@ def post(variables):
     return post_dec
 
 #
-# @last_modified
+# @if_modified_since
 #
 
-class last_modified(decorator):
-    pass
+class if_modified_since(decorator):
+    def __call__(self, req, *a, **k):
+        res = self.func(req, *a, **k)
+        if "if-modified-since" not in req:
+            return res
+        if "last-modified" not in res:
+            return res
+        if req["if-modified-since"] < res["last-modified"]:
+            return res
+        if res["x-status"] != httplib.OK:
+            return res
+        raise HTTPException(httplib.NOT_MODIFIED)
 
 #
 # @etag
@@ -459,4 +469,3 @@ def app_cached(n):
         def __call__(req, *a, **k):
             return self.func(req, *a, **k)
     return app_cached
-
