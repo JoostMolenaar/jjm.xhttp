@@ -75,6 +75,11 @@ class TestQlist(unittest.TestCase):
         self.assertEqual(qlist.items, [])
         self.assertEqual(result, None)
 
+    def test_repr(self):
+        qlist = xhttp.qlist("text/plain;q=0.9, application/xhtml+xml")
+        result = repr(qlist)
+        self.assertEquals(result, "qlist('text/plain;q=0.9,application/xhtml+xml')")
+
 class TestDate(unittest.TestCase):
     def test_epoch(self):
         date = xhttp.date("Thu, 01 Jan 1970 00:00:00 GMT")
