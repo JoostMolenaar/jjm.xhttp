@@ -638,5 +638,121 @@ class TestPost(unittest.TestCase):
         self.assertEquals(ex.exception.message, "Bad Request")
         self.assertEquals(ex.exception.headers, { "x-detail": "POST parameter 'spam' should occur exactly once" })
 
+class TestIfModifiedSince(unittest.TestCase):
+    def test_no_req_header(self):
+        @xhttp.if_modified_since
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 13
+            }
+        res = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+        })
+        self.assertEqual(res, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 13
+        })
+
+    def test_no_last_modified_header(self):
+        @xhttp.if_modified_since
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 13
+            }
+        res = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "if-modified-since": xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        })
+        self.assertEqual(res, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 13
+        })
+
+    def test_modified(self):
+        @xhttp.if_modified_since
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 13,
+                "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            }
+        res = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "if-modified-since": xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        })
+        self.assertEqual(res, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 13,
+            "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+        })
+
+    def test_not_modified(self):
+        @xhttp.if_modified_since
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 13,
+                "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            }
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({
+                "x-request-method": "GET",
+                "x-request-uri": "/",
+                "x-path-info": "/",
+                "x-query-string": "",
+                "x-document-root": os.getcwd(),
+                "if-modified-since": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            })
+        self.assertEquals(ex.exception.status, 304)
+        self.assertEquals(ex.exception.response(), { "x-status": 304 })
+
+    def test_non_200(self):
+        @xhttp.if_modified_since
+        def app(req):
+            return {
+                "x-status": xhttp.status.NO_CONTENT,
+                "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            }
+        res = app({
+            "x-request-method": "GET",
+            "x-request-uri": "/",
+            "x-path-info": "/",
+            "x-query-string": "",
+            "x-document-root": os.getcwd(),
+            "if-modified-since": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+        })
+        self.assertEquals(res, {
+            "x-status": 204,
+            "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+        })
+
 if __name__ == '__main__':
     unittest.main()
