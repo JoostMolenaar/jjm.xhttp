@@ -110,6 +110,19 @@ class TestDate(unittest.TestCase):
         self.assertEqual(type(ex.exception), ValueError)
         self.assertEqual(ex.exception.message, "Unsupported type NoneType")
 
+    def test_repr(self):
+        date = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        result = repr(date)
+        self.assertEqual(result, "date('Tue, 08 Jun 1982 23:11:00 GMT')")
+
+    def test_cmp(self):
+        date1 = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        date1b = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        date2 = xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+        self.assertTrue(date1 == date1b)
+        self.assertTrue(date1 < date2)
+        self.assertTrue(date2 > date1)
+
 def test_environ(method, request_uri, headers):
     request_uri_parts = request_uri.split("?", 1)
     (path_info, query_string) = request_uri_parts if len(request_uri_parts) == 2 else (request_uri, "")
