@@ -203,25 +203,30 @@ def extended_with(C):
 #
 
 class HTTPException(Exception):
+    EMPTY = [ httplib.NOT_MODIFIED ]
+
     def __init__(self, status, headers={}):
         self.status = status
         self.headers = headers
         super(HTTPException, self).__init__(httplib.responses[status])
 
     def response(self):
-        message = self.message
-        if "x-detail" in self.headers:
-            message += ": "
-            message += self.headers.pop("x-detail")
-        message += "\n"
-        result = {
-            "x-status": self.status,
-            "x-content": [message],
-            "content-type": "text/plain",
-            "content-length": len(message)
-        }
-        result.update(self.headers)
-        return result
+        if self.status in HTTPException.EMPTY:
+            return { "x-status": self.status }
+        else:
+            message = self.message
+            if "x-detail" in self.headers:
+                message += ": "
+                message += self.headers.pop("x-detail")
+            message += "\n"
+            result = {
+                "x-status": self.status,
+                "x-content": [message],
+                "content-type": "text/plain",
+                "content-length": len(message)
+            }
+            result.update(self.headers)
+            return result
         
 #
 # class Resource
