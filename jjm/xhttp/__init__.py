@@ -104,6 +104,12 @@ class date(object):
             dt.minute,
             dt.second)
 
+    def __repr__(self):
+        return "date({0})".format(repr(str(self)))
+
+    def __cmp__(self, other):
+        return cmp(self.timestamp, other.timestamp)
+
     def parse(self, s):
         dt = dateutil.parser.parse(s).astimezone(date.TZ_UTC)
         ts = dt - datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=date.TZ_UTC)
