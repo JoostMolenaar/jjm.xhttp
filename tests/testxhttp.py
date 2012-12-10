@@ -533,10 +533,11 @@ class TestCatcher(unittest.TestCase):
 
 class TestGet(unittest.TestCase):
     def test_present(self):
-        @xhttp.get({ "required": "^spam$",
-                     "optional?": "^albatross$",
-                     "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })
+        @xhttp.get({ 
+            "required": "^spam$",
+             "optional?": "^albatross$",
+             "list1+": "^\d+$",
+             "list2*": "^[a-z]+$" })
         def app(req):
             self.assertEquals(req["x-get"], {
                 "required": "spam",
@@ -547,10 +548,11 @@ class TestGet(unittest.TestCase):
         app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=46&list2=aa" }) 
 
     def test_missing_single(self):
-        app = xhttp.get({ "required": "^spam$",
-                     "optional?": "^albatross$",
-                     "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })(None)
+        app = xhttp.get({ 
+            "required": "^spam$",
+            "optional?": "^albatross$",
+            "list1+": "^\d+$",
+            "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "optional=albatross&list1=23&list1=46&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
@@ -558,22 +560,23 @@ class TestGet(unittest.TestCase):
         self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'required' should occur exactly once" })
 
     def test_multiple_optional(self):
-        app = xhttp.get({ "required": "^spam$",
-                     "optional?": "^albatross$",
-                     "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })(None)
+        app = xhttp.get({ 
+            "required": "^spam$",
+            "optional?": "^albatross$",
+            "list1+": "^\d+$",
+            "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "required=required&optional=albatross&optional=albatross&list1=23&list1=46&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
         self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'optional' should occur at most once" })
 
-
     def test_missing_multiple(self):
-        app = xhttp.get({ "required": "^spam$",
-                     "optional?": "^albatross$",
-                     "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })(None)
+        app = xhttp.get({ 
+            "required": "^spam$",
+            "optional?": "^albatross$",
+            "list1+": "^\d+$",
+            "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "required=spam&optional=albatross&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
@@ -589,10 +592,11 @@ class TestGet(unittest.TestCase):
         self.assertEquals(ex.exception.headers, { "x-detail": "Unknown GET parameter 'spam'" })
 
     def test_wrong_value(self):
-        app = xhttp.get({ "required": "^spam$",
-                     "optional?": "^albatross$",
-                     "list1+": "^\d+$",
-                     "list2*": "^[a-z]+$" })(None)
+        app = xhttp.get({ 
+            "required": "^spam$",
+            "optional?": "^albatross$",
+            "list1+": "^\d+$",
+            "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" }) 
         self.assertEquals(ex.exception.status, 400)
