@@ -1,5 +1,6 @@
 import unittest
 import os
+import os.path
 
 from StringIO import StringIO
 
@@ -771,6 +772,43 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-status": 204,
             "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
         })
+
+class TestServeFile(unittest.TestCase):
+    def test_existing_file(self):
+        result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=False)
+        self.assertEqual(result, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14,
+        })
+
+    def test_last_modified(self):
+        result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=True, etag=False)
+        self.assertEqual(result, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14,
+            "last-modified": xhttp.date(os.path.getmtime("data/hello-world.txt"))
+        })
+
+    def test_etag(self):
+        result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=True)
+        self.assertEqual(result, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14,
+            "etag": "d9014c4624844aa5bac314773d6b689ad467fa4e1d1a50a1b8a99d5a95f72ff5"
+        })
+
+    def test_not_found(self):
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            xhttp.serve_file("data/albatross.txt", "text/plain")
+        self.assertEquals(ex.exception.status, 404)
+        self.assertEquals(ex.exception.message, "Not Found")
+        self.assertEquals(ex.exception.headers, { "x-detail": "No such file or directory" })
 
 if __name__ == '__main__':
     unittest.main()
