@@ -93,6 +93,8 @@ class date(object):
             self.timestamp = self.parse(x)
         elif isinstance(x, int):
             self.timestamp = x
+        elif isinstance(x, float):
+            self.timestamp = int(x)
         else:
             raise ValueError("Unsupported type {0}".format(type(x).__name__))
 
