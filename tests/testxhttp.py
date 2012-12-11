@@ -810,5 +810,24 @@ class TestServeFile(unittest.TestCase):
         self.assertEquals(ex.exception.message, "Not Found")
         self.assertEquals(ex.exception.headers, { "x-detail": "No such file or directory" })
 
+class TestFileServer(unittest.TestCase):
+    def test_found(self):
+        app = xhttp.FileServer("data", "text/plain", last_modified=False, etag=False)
+        response = app({ "x-request-method": "GET" }, "hello-world.txt")
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14
+        })
+
+    def test_bad_filename(self):
+        app = xhttp.FileServer("data", "text/plain", last_modified=False, etag=False)
+        with self.assertRaises(xhttp.HTTPException) as ex: 
+            app({ "x-request-method": "GET" }, "../testxhttp.py")
+        self.assertEquals(ex.exception.status, 403)
+            
+        
+
 if __name__ == '__main__':
     unittest.main()
