@@ -474,3 +474,26 @@ def app_cached(n):
         def __call__(req, *a, **k):
             return self.func(req, *a, **k)
     return app_cached
+
+#
+# serve_file
+#
+
+def serve_file(filename, content_type, last_modified=True, etag=False):
+    try:
+        with open(filename, "rb") as f:
+            content = f.read()
+    except IOError as e:
+        raise HTTPException(httplib.NOT_FOUND, { "x-detail": e.strerror })
+    result = {
+        "x-status": httplib.OK,
+        "x-content": [content],
+        "content-type": content_type,
+        "content-length": len(content)
+    }
+    if last_modified:
+        result["last-modified"] = date(os.path.getmtime(filename))
+    if etag:
+        result["etag"] = hashlib.sha256(content).hexdigest()
+    return result
+
