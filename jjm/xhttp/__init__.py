@@ -497,3 +497,17 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
         result["etag"] = hashlib.sha256(content).hexdigest()
     return result
 
+class FileServer(Resource):
+    def __init__(self, path, content_type, last_modified=True, etag=False):
+        self.path = path
+        self.content_type = content_type
+        self.last_modified = last_modified
+        self.etag = etag
+        
+    def GET(self, req, filename):
+        fullname = os.path.join(self.path, filename)
+        if not os.path.abspath(fullname).startswith(os.path.abspath(self.path) + os.sep):
+            raise HTTPException(httplib.FORBIDDEN)
+        return serve_file(fullname, self.content_type, self.last_modified, self.etag)
+    
+
