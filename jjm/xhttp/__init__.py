@@ -58,9 +58,10 @@ class qlist(object):
         return "{0}({1})".format(type(self).__name__, repr(str(self)))
 
     def negotiate(self, keys):
-        for v in self:
+        for (_, _, v) in self.items:
             if v in keys:
                 return v
+        return None
 
     def negotiate_mime(self, keys):
         for (_, _, v) in self.items:

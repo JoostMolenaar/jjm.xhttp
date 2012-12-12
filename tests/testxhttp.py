@@ -81,6 +81,16 @@ class TestQlist(unittest.TestCase):
         result = repr(qlist)
         self.assertEquals(result, "qlist('text/plain;q=0.9,application/xhtml+xml')")
 
+    def test_negotiiate_other(self):
+        qlist = xhttp.qlist("gzip,deflate,sdch")
+        result = qlist.negotiate(["gzip"])
+        self.assertEquals(result, "gzip")
+
+    def test_negotiate_other_returning_none(self):
+        qlist = xhttp.qlist("deflate,sdch")
+        result = qlist.negotiate(["gzip"])
+        self.assertEquals(result, None)
+
 class TestDate(unittest.TestCase):
     def test_epoch(self):
         date = xhttp.date("Thu, 01 Jan 1970 00:00:00 GMT")
