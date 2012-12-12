@@ -810,6 +810,24 @@ class TestServeFile(unittest.TestCase):
         self.assertEquals(ex.exception.message, "Not Found")
         self.assertEquals(ex.exception.headers, { "x-detail": "No such file or directory" })
 
+    def test_file_read_throws_exception(self):
+        class MockOpen(object):
+            def __init__(self, filename, mode):
+                pass
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_value, traceback):
+                pass
+            def read(self):
+                raise Exception("random exception")
+        orig_open = __builtins__["open"]
+        __builtins__["open"] = MockOpen
+        try:
+            with self.assertRaises(Exception) as ex:
+                xhttp.serve_file("data/albatross.txt", "text/plain")
+        finally:
+            __builtins__["open"] = orig_open
+
 class TestFileServer(unittest.TestCase):
     def test_found(self):
         app = xhttp.FileServer("data", "text/plain", last_modified=False, etag=False)
@@ -826,8 +844,6 @@ class TestFileServer(unittest.TestCase):
         with self.assertRaises(xhttp.HTTPException) as ex: 
             app({ "x-request-method": "GET" }, "../testxhttp.py")
         self.assertEquals(ex.exception.status, 403)
-            
-        
 
 if __name__ == '__main__':
     unittest.main()
