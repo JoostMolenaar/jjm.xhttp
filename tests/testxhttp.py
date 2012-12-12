@@ -773,6 +773,85 @@ class TestIfModifiedSince(unittest.TestCase):
             "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
         })
 
+class TestIfNoneMatch(unittest.TestCase):
+    def test_no_etag(self):
+        @xhttp.if_none_match
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 14,
+            }
+        response = app({ "if-none-match": "A" })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14
+        })
+    def test_no_if_none_match(self):
+        @xhttp.if_none_match
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 14,
+                "etag": "A"
+            }
+        response = app({})
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14,
+            "etag": "A"
+        })
+    def test_differing_etag(self):
+        @xhttp.if_none_match
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 14,
+                "etag": "A"
+            }
+        response = app({ "if-none-match": "B" })
+        self.assertEqual(response, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain",
+            "content-length": 14,
+            "etag": "A"
+        })
+    def test_non_200(self):
+        @xhttp.if_none_match
+        def app(req):
+            return {
+                "x-status": xhttp.status.NO_CONTENT,
+                "etag": "A"
+            }
+        response = app({ "if-none-match": "A" })
+        self.assertEqual(response, {
+            "x-status": 204,
+            "etag": "A"
+        })
+    def test_not_modified(self):
+        @xhttp.if_none_match
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+                "content-length": 14,
+                "etag": "A"
+            }
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "if-none-match": "A" })
+        self.assertEqual(ex.exception.status, 304)
+
 class TestServeFile(unittest.TestCase):
     def test_existing_file(self):
         result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=False)
