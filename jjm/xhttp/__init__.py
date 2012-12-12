@@ -241,8 +241,7 @@ class Resource(object):
     def HEAD(self, req, *a, **k):
         if hasattr(self, "GET"):
             res = self.GET(req, *a, **k)
-            if "x-content" in res:
-                del res["x-content"]
+            res.pop("x-content", None)
             return res
         else:
             raise HTTPException(httplib.METHOD_NOT_ALLOWED, { "x-detail": "GET" })
