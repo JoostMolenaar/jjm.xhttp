@@ -435,11 +435,21 @@ class if_modified_since(decorator):
         raise HTTPException(httplib.NOT_MODIFIED)
 
 #
-# @etag
+# @if_none_match
 #
 
-class etag(decorator):
-    pass
+class if_none_match(decorator):
+    def __call__(self, req, *a, **k):
+        res = self.func(req, *a, **k)
+        if "if-none-match" not in req:
+            return res
+        if "etag" not in res:
+            return res
+        if req["if-none-match"] != res["etag"]:
+            return res
+        if res["x-status"] != httplib.OK:
+            return res
+        raise HTTPException(httplib.NOT_MODIFIED)
 
 #
 # @gzipped
