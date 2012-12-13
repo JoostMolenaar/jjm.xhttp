@@ -492,9 +492,9 @@ class accept_encoding(decorator):
         if "accept-encoding" not in req:
             return res
         if req["accept-encoding"].negotiate(["gzip"]):
-            content = _gzip_encode(req["x-content"])
-            res.upate({
-                "x-content": [content],
+            content = _gzip_encode(res["x-content"])
+            res.update({
+                "x-content": content,
                 "content-encoding": "gzip",
                 "content-length": len(content)
             })

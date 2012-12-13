@@ -949,13 +949,34 @@ class TestAcceptEncoding(unittest.TestCase):
                 "x-status": xhttp.status.OK,
                 "x-content": ["Hello, world!\n"],
                 "content-type": "text/plain",
+                "content-length": 14
             }
         res = app({})
         self.assertEquals(res, {
             "x-status": 200,
             "x-content": ["Hello, world!\n"],
-            "content-type": "text/plain"
+            "content-type": "text/plain",
+            "content-length": 14
         })
+
+    def test_gzip_encoding(self):
+        @xhttp.accept_encoding
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": "Hello, world!\n",
+                "content-type": "text/plain"
+            }
+        res = app({ "accept-encoding": xhttp.qlist_header("gzip,deflate,sdch") })
+        content = xhttp._gzip_encode("Hello, world!\n")
+        self.assertEquals(res, {
+            "x-status": 200,
+            "x-content": content,
+            "content-type": "text/plain",
+            "content-length": len(content),
+            "content-encoding": "gzip"
+        })
+        
 
 if __name__ == '__main__':
     unittest.main()
