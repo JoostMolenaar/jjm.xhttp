@@ -31,6 +31,7 @@ class decorator(object):
         self.func = func
 
     def __get__(self, obj, cls=None):
+        # XXX: don't know how to hit this branch in a sane way
         if cls is None:
             return self
         new_func = self.func.__get__(obj, cls)
