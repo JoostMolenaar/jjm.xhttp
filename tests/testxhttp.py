@@ -934,5 +934,28 @@ class TestFileServer(unittest.TestCase):
             app({ "x-request-method": "GET" }, "../testxhttp.py")
         self.assertEquals(ex.exception.status, 403)
 
+class TestAcceptEncoding(unittest.TestCase):
+    def test_gzip_encode_decode(self):
+        text = "Hello, world!\n"
+        compressed = xhttp._gzip_encode(text)
+        decompressed = xhttp._gzip_decode(compressed)
+        self.assertNotEqual(compressed, "")
+        self.assertEqual(decompressed, text)
+
+    def test_no_encoding(self):
+        @xhttp.accept_encoding
+        def app(req):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": ["Hello, world!\n"],
+                "content-type": "text/plain",
+            }
+        res = app({})
+        self.assertEquals(res, {
+            "x-status": 200,
+            "x-content": ["Hello, world!\n"],
+            "content-type": "text/plain"
+        })
+
 if __name__ == '__main__':
     unittest.main()
