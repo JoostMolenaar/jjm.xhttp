@@ -19,8 +19,8 @@ import dateutil.parser
 
 from .. import xml as xml
 
-# TODO : extract core.xml
-# TODO : extract core.run_server
+# XXX: for negotiating accept-charset, everything should be unicode objects. or else assume us-ascii
+# XXX: be more flexible about x-content having to be iterable? if it's str/basestring/unicode, put it inside a list?
 
 #
 # @decorator 
@@ -529,6 +529,10 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
     if etag:
         result["etag"] = hashlib.sha256(content).hexdigest()
     return result
+
+#
+# FileServer
+#
 
 class FileServer(Resource):
     def __init__(self, path, content_type, last_modified=True, etag=False):
