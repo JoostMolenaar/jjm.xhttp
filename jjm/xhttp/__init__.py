@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import datetime
+import gzip
 import hashlib
 import httplib
 import itertools
@@ -8,6 +9,7 @@ import json
 import os
 import os.path
 import re
+import StringIO
 import urllib
 
 import httplib as status
@@ -453,11 +455,32 @@ class if_none_match(decorator):
         raise HTTPException(httplib.NOT_MODIFIED)
 
 #
-# @gzipped
-#
+# @accept_encoding
+# 
 
-class gzipped(decorator):
-    pass
+def _gzip_encode(s):
+    z = StringIO.StringIO()
+    with gzip.GzipFile(fileobj=z, mode="wb") as f:
+        f.write(s)
+    z.seek(0)
+    return z.buf
+
+def _gzip_decode(z):
+    return gzip.GzipFile(fileobj=StringIO.StringIO(z), mode="rb").read()
+
+class accept_encoding(decorator):
+    def __init___(self, req, *a, **k):
+        res = self.func(req, *a, **k)
+        if "accept-encoding" not in req:
+            return res
+        if req["accept-encoding"].negotiate(["gzip"]):
+            content = _gzip_encode(req["x-content"])
+            res.upate({
+                "x-content": [content],
+                "content-encoding": "gzip",
+                "content-length": len(content)
+            })
+        return res
 
 #
 # @ranged
