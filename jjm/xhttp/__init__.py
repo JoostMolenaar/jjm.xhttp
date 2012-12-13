@@ -38,10 +38,10 @@ class decorator(object):
         return self.__class__(new_func)
 
 #
-# qlist
+# qlist_header
 # 
 
-class qlist(object):
+class qlist_header(object):
     def __init__(self, s):
         try: 
             items = re.split(r"\s*,\s*", s.lower())
@@ -66,6 +66,9 @@ class qlist(object):
                 return v
         return None
 
+    def noegotiate_language(self, tags):
+        pass
+
     def negotiate_mime(self, keys):
         for (_, _, v) in self.items:
             # match anything
@@ -83,10 +86,10 @@ class qlist(object):
         return None
 
 #
-# date
+# date_header
 #
 
-class date(object):
+class date_header(object):
     WEEKDAYS = 'Mon Tue Wed Thu Fri Sat Sun'.split()
     MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
     TZ_UTC = dateutil.tz.tzutc()
@@ -105,24 +108,38 @@ class date(object):
     def __str__(self):
         dt = datetime.datetime.utcfromtimestamp(self.timestamp)
         return "{0}, {1:02} {2} {3} {4:02}:{5:02}:{6:02} GMT".format(
-            date.WEEKDAYS[dt.weekday()], 
+            date_header.WEEKDAYS[dt.weekday()], 
             dt.day,
-            date.MONTHS[dt.month-1],
+            date_header.MONTHS[dt.month-1],
             dt.year,
             dt.hour,
             dt.minute,
             dt.second)
 
     def __repr__(self):
-        return "date({0})".format(repr(str(self)))
+        return "date_header({0})".format(repr(str(self)))
 
     def __cmp__(self, other):
         return cmp(self.timestamp, other.timestamp)
 
     def parse(self, s):
-        dt = dateutil.parser.parse(s).astimezone(date.TZ_UTC)
-        ts = dt - datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=date.TZ_UTC)
+        dt = dateutil.parser.parse(s).astimezone(date_header.TZ_UTC)
+        ts = dt - datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=date_header.TZ_UTC)
         return int(ts.total_seconds())
+
+#
+# range_header
+#
+
+class range_header(object):
+    def __init__(self, s):
+        self.start, self.stop = self.parse(s)
+
+    def parse(self, s):
+        ranges = s.split(",")
+        if len(ranges) > 1:
+            raise HTTPException(httplib.NOT_IMPLEMENTED, { "x-detail": "Server supports not more than one range" })
+        
 
 #
 # @xhttp_app
@@ -158,11 +175,11 @@ class xhttp_app(decorator):
         return content
 
     PARSERS = {
-        "accept"            : qlist,
-        "accept-charset"    : qlist,
-        "accept-encoding"   : qlist,
-        "accept-language"   : qlist,
-        "if-modified-since" : date
+        "accept"            : qlist_header,
+        "accept-charset"    : qlist_header,
+        "accept-encoding"   : qlist_header,
+        "accept-language"   : qlist_header,
+        "if-modified-since" : date_header
     }
 
     ENVIRONMENT = {
@@ -470,7 +487,7 @@ def _gzip_decode(z):
     return gzip.GzipFile(fileobj=StringIO.StringIO(z), mode="rb").read()
 
 class accept_encoding(decorator):
-    def __init___(self, req, *a, **k):
+    def __call__(self, req, *a, **k):
         res = self.func(req, *a, **k)
         if "accept-encoding" not in req:
             return res
@@ -526,7 +543,7 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
         "content-length": len(content)
     }
     if last_modified:
-        result["last-modified"] = date(os.path.getmtime(filename))
+        result["last-modified"] = date_header(os.path.getmtime(filename))
     if etag:
         result["etag"] = hashlib.sha256(content).hexdigest()
     return result

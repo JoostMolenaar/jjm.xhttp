@@ -38,7 +38,7 @@ class TestDecorator(unittest.TestCase):
 
 class TestQlist(unittest.TestCase):
     def test_parse(self):
-        qlist = xhttp.qlist("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        qlist = xhttp.qlist_header("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         self.assertIsNotNone(qlist)
         self.assertEquals(
             [ v for (_, _, v) in qlist.items ], 
@@ -46,90 +46,90 @@ class TestQlist(unittest.TestCase):
 
     def test_roundtrip(self):
         s1 = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        qlist = xhttp.qlist(s1)
+        qlist = xhttp.qlist_header(s1)
         s2 = str(qlist)
         self.assertEqual(s2, s1)
 
     def test_negotiate_exact_match(self):
-        qlist = xhttp.qlist("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        qlist = xhttp.qlist_header("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         result = qlist.negotiate_mime(["application/xml", "image/png"])
         self.assertEqual(result, "application/xml")
 
     def test_negotiate_any_match(self):
-        qlist = xhttp.qlist("text/html,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85,*/*;q=0.8")
+        qlist = xhttp.qlist_header("text/html,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85,*/*;q=0.8")
         result = qlist.negotiate_mime(["foo/bar"])
         self.assertEqual(result, "foo/bar")
 
     def test_negotiate_partial_match(self):
-        qlist = xhttp.qlist("application/xhtml+xml,application/xml;q=0.9,text/*;q=0.95,*/*;q=0.8")
+        qlist = xhttp.qlist_header("application/xhtml+xml,application/xml;q=0.9,text/*;q=0.95,*/*;q=0.8")
         result = qlist.negotiate_mime(["application/xml", "text/plain"])
         self.assertEqual(result, "text/plain")
 
     def test_negotiate_no_match(self):
-        qlist = xhttp.qlist("text/*;q=0.95,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85")
+        qlist = xhttp.qlist_header("text/*;q=0.95,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85")
         result = qlist.negotiate_mime(["image/png", "audio/mpeg"])
         self.assertEqual(result, None)
 
     def test_negotiate_bad_header(self):
-        qlist = xhttp.qlist("text/plain;q=albatross")
+        qlist = xhttp.qlist_header("text/plain;q=albatross")
         result = qlist.negotiate_mime(["image/png", "audio/mpeg"])
         self.assertEqual(qlist.items, [])
         self.assertEqual(result, None)
 
     def test_repr(self):
-        qlist = xhttp.qlist("text/plain;q=0.9, application/xhtml+xml")
+        qlist = xhttp.qlist_header("text/plain;q=0.9, application/xhtml+xml")
         result = repr(qlist)
-        self.assertEquals(result, "qlist('text/plain;q=0.9,application/xhtml+xml')")
+        self.assertEquals(result, "qlist_header('text/plain;q=0.9,application/xhtml+xml')")
 
     def test_negotiiate_other(self):
-        qlist = xhttp.qlist("gzip,deflate,sdch")
+        qlist = xhttp.qlist_header("gzip,deflate,sdch")
         result = qlist.negotiate(["gzip"])
         self.assertEquals(result, "gzip")
 
     def test_negotiate_other_returning_none(self):
-        qlist = xhttp.qlist("deflate,sdch")
+        qlist = xhttp.qlist_header("deflate,sdch")
         result = qlist.negotiate(["gzip"])
         self.assertEquals(result, None)
 
 class TestDate(unittest.TestCase):
     def test_epoch(self):
-        date = xhttp.date("Thu, 01 Jan 1970 00:00:00 GMT")
+        date = xhttp.date_header("Thu, 01 Jan 1970 00:00:00 GMT")
         self.assertEqual(date.timestamp, 0)
         self.assertEqual(str(date), "Thu, 01 Jan 1970 00:00:00 GMT")
 
     def test_my_birthday_gmt(self):
-        date = xhttp.date("Tue, 08 Jun 1982 23:11:00 GMT")
+        date = xhttp.date_header("Tue, 08 Jun 1982 23:11:00 GMT")
         self.assertEqual(date.timestamp, 392425860)
         self.assertEqual(str(date), "Tue, 08 Jun 1982 23:11:00 GMT")
 
     def test_my_birthday_in_my_timezone(self):
-        date = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        date = xhttp.date_header("Wed, 09 Jun 1982 01:11:00 +0200")
         self.assertEqual(date.timestamp, 392425860)
         self.assertEqual(str(date), "Tue, 08 Jun 1982 23:11:00 GMT")
 
     def test_epoch_to_str(self):
-        date = xhttp.date(0)
+        date = xhttp.date_header(0)
         self.assertEqual(str(date), "Thu, 01 Jan 1970 00:00:00 GMT")
 
     def test_my_birthday_in_gmt_to_str(self):
-        date = xhttp.date(392425860)
+        date = xhttp.date_header(392425860)
         self.assertEqual(str(date), "Tue, 08 Jun 1982 23:11:00 GMT")
 
     def test_wrong_input(self):
         with self.assertRaises(ValueError) as ex:
-            xhttp.date(None)
+            xhttp.date_header(None)
         self.assertEqual(type(ex.exception), ValueError)
         self.assertEqual(ex.exception.message, "Unsupported type NoneType")
 
     def test_repr(self):
-        date = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+        date = xhttp.date_header("Wed, 09 Jun 1982 01:11:00 +0200")
         result = repr(date)
-        self.assertEqual(result, "date('Tue, 08 Jun 1982 23:11:00 GMT')")
+        self.assertEqual(result, "date_header('Tue, 08 Jun 1982 23:11:00 GMT')")
 
     def test_cmp(self):
-        date1 = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
-        date1b = xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
-        date2 = xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+        date1 = xhttp.date_header("Wed, 09 Jun 1982 01:11:00 +0200")
+        date1b = xhttp.date_header("Wed, 09 Jun 1982 01:11:00 +0200")
+        date2 = xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
         self.assertTrue(date1 == date1b)
         self.assertTrue(date1 < date2)
         self.assertTrue(date2 > date1)
@@ -421,7 +421,7 @@ class TestNegotiate(unittest.TestCase):
                 "x-path-info": "/",
                 "x-query-string": "",
                 "x-document-root": os.getcwd(),
-                "accept": xhttp.qlist("image/png")
+                "accept": xhttp.qlist_header("image/png")
             })
         self.assertEqual(ex.exception.response(), {
             "x-status": 406,
@@ -438,7 +438,7 @@ class TestNegotiate(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "accept": xhttp.qlist("text/plain")
+            "accept": xhttp.qlist_header("text/plain")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -455,7 +455,7 @@ class TestNegotiate(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "accept": xhttp.qlist("text/html")
+            "accept": xhttp.qlist_header("text/html")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -472,7 +472,7 @@ class TestNegotiate(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "accept": xhttp.qlist("application/json")
+            "accept": xhttp.qlist_header("application/json")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -489,7 +489,7 @@ class TestNegotiate(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "accept": xhttp.qlist("application/xhtml+xml")
+            "accept": xhttp.qlist_header("application/xhtml+xml")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -506,7 +506,7 @@ class TestNegotiate(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "accept": xhttp.qlist("application/xml")
+            "accept": xhttp.qlist_header("application/xml")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -706,7 +706,7 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+            "if-modified-since": xhttp.date_header("Wed, 09 Jun 1982 01:11:00 +0200")
         })
         self.assertEqual(res, {
             "x-status": 200,
@@ -723,7 +723,7 @@ class TestIfModifiedSince(unittest.TestCase):
                 "x-content": ["Hello, world!\n"],
                 "content-type": "text/plain",
                 "content-length": 13,
-                "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+                "last-modified": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
             }
         res = app({
             "x-request-method": "GET",
@@ -731,14 +731,14 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.date("Wed, 09 Jun 1982 01:11:00 +0200")
+            "if-modified-since": xhttp.date_header("Wed, 09 Jun 1982 01:11:00 +0200")
         })
         self.assertEqual(res, {
             "x-status": 200,
             "x-content": ["Hello, world!\n"],
             "content-type": "text/plain",
             "content-length": 13,
-            "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            "last-modified": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
         })
 
     def test_not_modified(self):
@@ -749,7 +749,7 @@ class TestIfModifiedSince(unittest.TestCase):
                 "x-content": ["Hello, world!\n"],
                 "content-type": "text/plain",
                 "content-length": 13,
-                "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+                "last-modified": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
             }
         with self.assertRaises(xhttp.HTTPException) as ex:
             app({
@@ -758,7 +758,7 @@ class TestIfModifiedSince(unittest.TestCase):
                 "x-path-info": "/",
                 "x-query-string": "",
                 "x-document-root": os.getcwd(),
-                "if-modified-since": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+                "if-modified-since": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
             })
         self.assertEquals(ex.exception.status, 304)
         self.assertEquals(ex.exception.response(), { "x-status": 304 })
@@ -768,7 +768,7 @@ class TestIfModifiedSince(unittest.TestCase):
         def app(req):
             return {
                 "x-status": xhttp.status.NO_CONTENT,
-                "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+                "last-modified": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
             }
         res = app({
             "x-request-method": "GET",
@@ -776,11 +776,11 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            "if-modified-since": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
         })
         self.assertEquals(res, {
             "x-status": 204,
-            "last-modified": xhttp.date("Mon, 23 Jul 2012 20:00:00 +0200")
+            "last-modified": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
         })
 
 class TestIfNoneMatch(unittest.TestCase):
@@ -879,7 +879,7 @@ class TestServeFile(unittest.TestCase):
             "x-content": ["Hello, world!\n"],
             "content-type": "text/plain",
             "content-length": 14,
-            "last-modified": xhttp.date(os.path.getmtime("data/hello-world.txt"))
+            "last-modified": xhttp.date_header(os.path.getmtime("data/hello-world.txt"))
         })
 
     def test_etag(self):
