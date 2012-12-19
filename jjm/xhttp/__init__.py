@@ -38,13 +38,13 @@ class decorator(object):
         return self.__class__(new_func)
 
 #
-# qlist_header
+# QListHeader
 # 
 
-class qlist_header(object):
+class QListHeader(object):
     def __init__(self, s):
         try: 
-            items = re.split(r"\s*,\s*", s.lower())
+            items = re.split(r"\s*,\s*", s)
             items = [ re.split(r"\s*;\s*", item) for item in items ]
             items = [ t if len(t) == 2 else (t + ["q=1.0"]) for t in items ]
             items = [ (m, q.split('=')[1]) for (m, q) in items ] 
@@ -62,11 +62,11 @@ class qlist_header(object):
 
     def negotiate(self, keys):
         for (_, _, v) in self.items:
-            if v in keys:
+            if any(v.lower() == k.lower() for k in keys):
                 return v
         return None
 
-    def noegotiate_language(self, tags):
+    def negotiate_language(self, tags):
         pass
 
     def negotiate_mime(self, keys):
@@ -76,20 +76,20 @@ class qlist_header(object):
                 return keys[0]
             # match exactly
             for k in keys:
-                if k == v:
+                if k.lower() == v.lower():
                     return k
             # match partially
             for k in keys:
                 s = k.split("/")[0] + "/*"
-                if s == v:
+                if s.lower() == v.lower():
                     return k
         return None
 
 #
-# date_header
+# DateHeader
 #
 
-class date_header(object):
+class DateHeader(object):
     WEEKDAYS = 'Mon Tue Wed Thu Fri Sat Sun'.split()
     MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
     TZ_UTC = dateutil.tz.tzutc()
@@ -108,38 +108,47 @@ class date_header(object):
     def __str__(self):
         dt = datetime.datetime.utcfromtimestamp(self.timestamp)
         return "{0}, {1:02} {2} {3} {4:02}:{5:02}:{6:02} GMT".format(
-            date_header.WEEKDAYS[dt.weekday()], 
+            DateHeader.WEEKDAYS[dt.weekday()], 
             dt.day,
-            date_header.MONTHS[dt.month-1],
+            DateHeader.MONTHS[dt.month-1],
             dt.year,
             dt.hour,
             dt.minute,
             dt.second)
 
     def __repr__(self):
-        return "date_header({0})".format(repr(str(self)))
+        return "{0}({1})".format(type(self).__name__, repr(str(self)))
 
     def __cmp__(self, other):
         return cmp(self.timestamp, other.timestamp)
 
     def parse(self, s):
-        dt = dateutil.parser.parse(s).astimezone(date_header.TZ_UTC)
-        ts = dt - datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=date_header.TZ_UTC)
+        dt = dateutil.parser.parse(s).astimezone(DateHeader.TZ_UTC)
+        ts = dt - datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=DateHeader.TZ_UTC)
         return int(ts.total_seconds())
 
 #
-# range_header
+# RangeHeader 
 #
 
-class range_header(object):
+class RangeHeader(object):
     def __init__(self, s):
-        self.start, self.stop = self.parse(s)
+        self.unit, self.start, self.stop = self.parse(s)
 
     def parse(self, s):
-        ranges = s.split(",")
-        if len(ranges) > 1:
-            raise HTTPException(httplib.NOT_IMPLEMENTED, { "x-detail": "Server supports not more than one range" })
-        
+        unit, ranges = s.split("=", 1)
+        if len(ranges.split(",")) > 1:
+            raise HTTPException(httplib.NOT_IMPLEMENTED, { "x-detail": "Multiple ranges not implemented" })
+        start, stop = ranges.split("-", 1)
+        try:
+            start = int(start)
+        except:
+            start = None
+        try:
+            stop = int(stop)
+        except:
+            stop = None
+        return unit, start, stop
 
 #
 # @xhttp_app
@@ -154,10 +163,6 @@ class xhttp_app(decorator):
         request.update({ target: get(environment)
                          for (target, get) in self.ENVIRONMENT.items() })
 
-        request.update({ ("-" + name): request[name]
-                         for name in self.PARSERS
-                         if name in request })
-
         request.update({ name: parse(request[name])
                          for (name, parse) in self.PARSERS.items()
                          if name in request })
@@ -167,7 +172,11 @@ class xhttp_app(decorator):
         status = response.pop("x-status")
         status = str(status) + " " + httplib.responses[status]
 
-        content = response.pop("x-content") if "x-content" in response else [""]
+        content = response.pop("x-content", "")
+        if isinstance(content, str):
+            response["content-length"] = len(content)
+            content = [content]
+
         headers = [ (header.title(), str(value)) 
                     for (header, value) in response.items() ]
 
@@ -175,11 +184,12 @@ class xhttp_app(decorator):
         return content
 
     PARSERS = {
-        "accept"            : qlist_header,
-        "accept-charset"    : qlist_header,
-        "accept-encoding"   : qlist_header,
-        "accept-language"   : qlist_header,
-        "if-modified-since" : date_header
+        "accept"            : QListHeader,
+        "accept-charset"    : QListHeader,
+        "accept-encoding"   : QListHeader,
+        "accept-language"   : QListHeader,
+        "if-modified-since" : DateHeader,
+        "range"             : RangeHeader
     }
 
     ENVIRONMENT = {
@@ -247,9 +257,8 @@ class HTTPException(Exception):
             message += "\n"
             result = {
                 "x-status": self.status,
-                "x-content": [message],
-                "content-type": "text/plain",
-                "content-length": len(message)
+                "x-content": message,
+                "content-type": "text/plain"
             }
             result.update(self.headers)
             return result
@@ -317,11 +326,11 @@ class Router(object):
         raise HTTPException(httplib.NOT_FOUND, { "x-detail": request["x-request-uri"] })
 
 #
-# @negotiate
+# @accept
 #
 
-def custom_negotiate(serializers):
-    class negotiate(decorator):
+def custom_accept(serializers):
+    class accept(decorator):
         def __call__(self, req, *a, **k):
             res = self.func(req, *a, **k)   
             content_view = res.pop("x-content-view")
@@ -333,18 +342,16 @@ def custom_negotiate(serializers):
                 if content_type in serializers:
                     serialize_obj = serializers[content_type]
                     res["x-content"] = serialize_obj(res["x-content"])
-                res["content-length"] = sum(len(chunk) for chunk in res["x-content"])
                 return res
             else:
                 raise HTTPException(httplib.NOT_ACCEPTABLE)
-    return negotiate
+    return accept 
 
-negotiate = custom_negotiate({ 
-    "application/xml"       : lambda content: [xml.serialize(content).encode("utf8")],
-    "application/xhtml+xml" : lambda content: [xml.serialize(content).encode("utf8")],
-    "text/html"             : lambda content: [xml.serialize(content).encode("utf8")],
-    "application/json"      : lambda content: [json.dumps(obj=content, sort_keys=1)],
-    "text/plain"            : lambda content: [content]
+accept = custom_accept({ 
+    "application/xml"       : lambda content: xml.serialize(content),
+    "application/xhtml+xml" : lambda content: xml.serialize(content),
+    "text/html"             : lambda content: xml.serialize(content),
+    "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, ensure_ascii=False),
 })
 
 #
@@ -367,7 +374,7 @@ class catcher(decorator):
             return e.response()
 
 #
-# @get
+# @get / @post
 #
 
 def _parse_x_www_form_urlencoded(parsertype, variables):
@@ -421,10 +428,6 @@ def get(variables):
             req["x-get"] = parser(req["x-query-string"])
             return self.func(req, *a, **k)
     return get_dec
-
-#
-# @post
-#
 
 def post(variables):
     parser = _parse_x_www_form_urlencoded("POST", variables)
@@ -501,11 +504,44 @@ class accept_encoding(decorator):
         return res
 
 #
+# @accept_charset 
+#
+
+class accept_charset(decorator):
+    def __call__(self, req, *a, **k):
+        res = self.func(req, *a, **k)
+        if "x-content" not in res:
+            return res
+        if isinstance(res["x-content"], unicode):
+            charsets = req.get("accept-charset", None) or QListHeader("US-ASCII")
+            charset = charsets.negotiate(["UTF-8", "UTF-16", "US-ASCII"])
+            if charset:
+                res["x-content"] = res["x-content"].encode(charset)
+                res["content-type"] += "; charset={0}".format(charset)
+            else:
+                raise HTTPException(httplib.NOT_ACCEPTABLE, { "x-detail": "No supported charset requested" })
+        return res
+
+#
 # @ranged
 #
 
 class ranged(decorator):
-    pass
+    def __call__(self, req, *a, **k):
+        res = self.func(req, *a, **k)
+        if "range" not in req:
+            return res
+        if "x-content" not in res:
+            return res
+        start = req["range"].start
+        stop = req["range"].stop
+        length = len(res["x-content"])
+        res.update({
+            "x-status": httplib.PARTIAL_CONTENT,
+            "x-content": res["x-content"][start:stop],
+            "content-range": "{0}-{1}/{2}".format(start, stop, length)
+        })
+        return res
 
 #
 # @cache_control
@@ -520,11 +556,21 @@ def cache_control(*x):
 # @app_cached
 #
 
-def app_cached(n):
-    class app_cached(decorator):
-        def __call__(req, *a, **k):
-            return self.func(req, *a, **k)
-    return app_cached
+def app_cached(size):
+    def cache_closure(cache, cache_keys): 
+        class app_cached(decorator):
+            def __call__(self, req, *a, **k):
+                hit = a in cache
+                if not hit:
+                    cache[a] = self.func(req, *a, **k)
+                    cache_keys.append(a)
+                    if len(cache_keys) > size:
+                        del cache[cache_keys.pop(0)]
+                response = cache[a].copy()
+                response.update({ "x-cache": "HIT" if hit else "MISS" })
+                return response
+        return app_cached
+    return cache_closure(dict(), list())
 
 #
 # serve_file
@@ -543,7 +589,7 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
         "content-length": len(content)
     }
     if last_modified:
-        result["last-modified"] = date_header(os.path.getmtime(filename))
+        result["last-modified"] = DateHeader(os.path.getmtime(filename))
     if etag:
         result["etag"] = hashlib.sha256(content).hexdigest()
     return result
