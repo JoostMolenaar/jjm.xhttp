@@ -6,6 +6,10 @@ from StringIO import StringIO
 
 from jjm import xhttp
 
+#
+# TestDecorator
+#
+
 class TestDecorator(unittest.TestCase):
     class dec(xhttp.decorator):
         def __call__(self, *a, **k):
@@ -35,6 +39,10 @@ class TestDecorator(unittest.TestCase):
         obj = C() 
         spam = C.__dict__["spam"].__get__(obj, None)
         self.assertEqual(spam(obj, 23), 92)
+
+#
+# TestQlist
+#
 
 class TestQlist(unittest.TestCase):
     def test_parse(self):
@@ -90,6 +98,10 @@ class TestQlist(unittest.TestCase):
         qlist = xhttp.qlist_header("deflate,sdch")
         result = qlist.negotiate(["gzip"])
         self.assertEquals(result, None)
+
+#
+# TestDate
+#
 
 class TestDate(unittest.TestCase):
     def test_epoch(self):
@@ -187,6 +199,10 @@ class TestXhttpAppDecorator(unittest.TestCase):
         result = app(environ, start_response)
 
         self.assertEquals(result, ["Hello, world!\n"])
+
+#
+# TestResource
+#
 
 class HelloWorld(xhttp.Resource):
     def GET(self, request):
@@ -303,6 +319,10 @@ class TestResource(unittest.TestCase):
             "content-length": 25 
         })
 
+#
+# TestRouter
+#
+
 class HelloWorldRouter(xhttp.Router):
     def __init__(self):
         super(HelloWorldRouter, self).__init__(
@@ -390,6 +410,10 @@ class TestRouter(unittest.TestCase):
         self.assertEqual(response, {
             "x-status": 204
         })
+
+#
+# TestAccept
+#
 
 class HelloContentNegotiatingWorld(xhttp.Resource):
     @xhttp.negotiate
@@ -515,6 +539,10 @@ class TestNegotiate(unittest.TestCase):
             "content-length": 32
         })
 
+#
+# TestCatcher
+#
+
 class ExceptionalResource(xhttp.Resource):
     @xhttp.catcher
     def GET(self, req):
@@ -558,7 +586,10 @@ class TestCatcher(unittest.TestCase):
             "content-length": 27,
             "location": "/somewhere-else"
         })
-        self.assertEqual(sum(len(chunk) for chunk in response["x-content"]), response["content-length"])
+
+#
+# TestGet
+#
 
 class TestGet(unittest.TestCase):
     def test_present(self):
@@ -644,6 +675,10 @@ class TestGet(unittest.TestCase):
             self.assertEquals(req["x-get"]["message"], u"hej, v\ufffdrld")
         app({ "x-query-string": "message=hej%2C%20v%E4rld" })
 
+#
+# TestPost
+#
+
 class TestPost(unittest.TestCase):
     def test_post(self):
         @xhttp.post({ "spam": "^albatross$" })
@@ -666,6 +701,10 @@ class TestPost(unittest.TestCase):
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
         self.assertEquals(ex.exception.headers, { "x-detail": "POST parameter 'spam' should occur exactly once" })
+
+#
+# TestIfModifiedSince
+#
 
 class TestIfModifiedSince(unittest.TestCase):
     def test_no_req_header(self):
@@ -776,12 +815,16 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
+            "if-modified-since": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
         })
         self.assertEquals(res, {
             "x-status": 204,
-            "last-modified": xhttp.date_header("Mon, 23 Jul 2012 20:00:00 +0200")
+            "last-modified": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
         })
+
+#
+# TestIfNoneMatch
+#
 
 class TestIfNoneMatch(unittest.TestCase):
     def test_no_etag(self):
@@ -862,6 +905,10 @@ class TestIfNoneMatch(unittest.TestCase):
             app({ "if-none-match": "A" })
         self.assertEqual(ex.exception.status, 304)
 
+#
+# TestServeFile
+#
+
 class TestServeFile(unittest.TestCase):
     def test_existing_file(self):
         result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=False)
@@ -917,6 +964,10 @@ class TestServeFile(unittest.TestCase):
         finally:
             __builtins__["open"] = orig_open
 
+#
+# TestFileServer
+#
+
 class TestFileServer(unittest.TestCase):
     def test_found(self):
         app = xhttp.FileServer("data", "text/plain", last_modified=False, etag=False)
@@ -933,6 +984,10 @@ class TestFileServer(unittest.TestCase):
         with self.assertRaises(xhttp.HTTPException) as ex: 
             app({ "x-request-method": "GET" }, "../testxhttp.py")
         self.assertEquals(ex.exception.status, 403)
+
+#
+# TestAcceptEncoding
+#
 
 class TestAcceptEncoding(unittest.TestCase):
     def test_gzip_encode_decode(self):
