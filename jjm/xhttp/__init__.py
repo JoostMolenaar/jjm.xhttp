@@ -10,6 +10,7 @@ import os
 import os.path
 import re
 import StringIO
+import traceback
 import urllib
 
 import httplib as status
@@ -193,6 +194,7 @@ class xhttp_app(decorator):
     }
 
     ENVIRONMENT = {
+        "content-length"   : lambda env: env.get("CONTENT_LENGTH", None),
         "x-document-root"  : lambda env: env.get("DOCUMENT_ROOT", None),
         "x-request-uri"    : lambda env: env.get("REQUEST_URI", None),
         "x-request-method" : lambda env: env.get("REQUEST_METHOD", None),
@@ -366,9 +368,8 @@ class catcher(decorator):
             except Exception as e:
                 if isinstance(e, HTTPException):
                     raise
-                detail = type(e).__name__
-                detail += "\n\n"
-                detail += e.message
+                traceback.print_exc(e)
+                detail = "{0} ({1})".format(type(e).__name__, e.message)
                 raise HTTPException(httplib.INTERNAL_SERVER_ERROR, { "x-detail": detail })
         except HTTPException as e:
             return e.response()
@@ -437,7 +438,8 @@ def post(variables):
                 content_length = int(req["content-length"])
             except:
                 content_length = 0
-            req["x-post"] = parser(req["x-wsgi-input"].read(content_length))
+            wsgi_input = req["x-wsgi-input"].read(content_length)
+            req["x-post"] = parser(wsgi_input)
             return self.func(req, *a, **k)
     return post_dec
 
@@ -610,5 +612,29 @@ class FileServer(Resource):
         if not os.path.abspath(fullname).startswith(os.path.abspath(self.path) + os.sep):
             raise HTTPException(httplib.FORBIDDEN)
         return serve_file(fullname, self.content_type, self.last_modified, self.etag)
-    
+
+#
+# run_server
+#
+
+def run_server(app, ip='', port=8000):
+    def fix_wsgiref(app):
+        def fixed_app(environ, start_response):
+            # add REQUEST_URI
+            if 'REQUEST_URI' not in environ:
+                environ['REQUEST_URI'] = environ['PATH_INFO']
+                if environ['QUERY_STRING']:
+                    environ['REQUEST_URI'] += '?'
+                    environ['REQUEST_URI'] += environ['QUERY_STRING']
+            # add DOCUMENT_ROOT
+            import os
+            environ['DOCUMENT_ROOT'] = os.getcwd()
+            # do it
+            return app(environ, start_response)
+        return fixed_app
+
+    app = fix_wsgiref(app)
+    print 'Serving on {0}:{1}'.format(ip, port)
+    import wsgiref.simple_server
+    wsgiref.simple_server.make_server(ip, port, app).serve_forever()
 
