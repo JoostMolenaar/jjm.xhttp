@@ -136,6 +136,9 @@ class RangeHeader(object):
     def __init__(self, s):
         self.unit, self.start, self.stop = self.parse(s)
 
+    def __repr__(self):
+        return "{0}({1}, {2}, {3})".format(type(self).__name__, self.unit, self.start, self.stop)
+
     def parse(self, s):
         unit, ranges = s.split("=", 1)
         if len(ranges.split(",")) > 1:
@@ -178,8 +181,8 @@ class xhttp_app(decorator):
             response["content-length"] = len(content)
             content = [content]
 
-        headers = [ (header.title(), str(value)) 
-                    for (header, value) in response.items() ]
+        headers = [ (key.title(), str(response[key]))
+                    for key in sorted(response.keys()) ]
 
         start_response(status, headers)
         return content
@@ -195,13 +198,19 @@ class xhttp_app(decorator):
 
     ENVIRONMENT = {
         "content-length"   : lambda env: env.get("CONTENT_LENGTH", None),
+        "content-type"     : lambda env: env.get("CONTENT_TYPE", None),
         "x-document-root"  : lambda env: env.get("DOCUMENT_ROOT", None),
-        "x-request-uri"    : lambda env: env.get("REQUEST_URI", None),
-        "x-request-method" : lambda env: env.get("REQUEST_METHOD", None),
         "x-path-info"      : lambda env: env.get("PATH_INFO", None),
         "x-query-string"   : lambda env: env.get("QUERY_STRING", None),
-        "x-wsgi-input"     : lambda env: env.get("wsgi.input", None),
-        "x-env"            : lambda env: env
+        "x-remote-addr"    : lambda env: env.get("REMOTE_ADDR", None),
+        "x-remote-port"    : lambda env: env.get("REMOTE_PORT", None),
+        "x-request-uri"    : lambda env: env.get("REQUEST_URI", None),
+        "x-request-method" : lambda env: env.get("REQUEST_METHOD", None),
+        "x-server-name"    : lambda env: env.get("SERVER_NAME", None),
+        "x-server-port"    : lambda env: env.get("SERVER_PORT", None),
+        "x-server-protocol": lambda env: env.get("SERVER_PROTOCOL", None),
+        "x-wsgi-input"     : lambda env: env.get("wsgi.input", None)
+        #x-env"            : lambda env: env
     }
         
 #
@@ -250,7 +259,9 @@ class HTTPException(Exception):
 
     def response(self):
         if self.status in HTTPException.EMPTY:
-            return { "x-status": self.status }
+            res = { "x-status": self.status }
+            res.update(self.headers)
+            return res
         else:
             message = self.message
             if "x-detail" in self.headers:
@@ -334,9 +345,10 @@ class Router(object):
 def custom_accept(serializers):
     class accept(decorator):
         def __call__(self, req, *a, **k):
-            res = self.func(req, *a, **k)   
+            res = self.func(req, *a, **k)
+            accept = req["accept"] if "accept" in req else QListHeader("*/*")
             content_view = res.pop("x-content-view")
-            content_type = req["accept"].negotiate_mime(content_view.keys())
+            content_type = accept.negotiate_mime(content_view.keys())
             if content_type:
                 generate_obj = content_view[content_type]
                 res["x-content"] = generate_obj(res["x-content"])
@@ -515,7 +527,7 @@ class accept_charset(decorator):
         if "x-content" not in res:
             return res
         if isinstance(res["x-content"], unicode):
-            charsets = req.get("accept-charset", None) or QListHeader("US-ASCII")
+            charsets = req.get("accept-charset", None) or QListHeader("UTF-8")
             charset = charsets.negotiate(["UTF-8", "UTF-16", "US-ASCII"])
             if charset:
                 res["x-content"] = res["x-content"].encode(charset)
@@ -531,17 +543,18 @@ class accept_charset(decorator):
 class ranged(decorator):
     def __call__(self, req, *a, **k):
         res = self.func(req, *a, **k)
+        res.update({ "accept-ranges": "bytes" })
         if "range" not in req:
             return res
         if "x-content" not in res:
             return res
-        start = req["range"].start
-        stop = req["range"].stop
         length = len(res["x-content"])
+        start = req["range"].start
+        stop = req["range"].stop if req["range"].stop is not None else (length - 1)
         res.update({
             "x-status": httplib.PARTIAL_CONTENT,
-            "x-content": res["x-content"][start:stop],
-            "content-range": "{0}-{1}/{2}".format(start, stop, length)
+            "x-content": res["x-content"][start:stop+1],
+            "content-range": "bytes {0}-{1}/{2}".format(start, stop, length)
         })
         return res
 
@@ -549,10 +562,33 @@ class ranged(decorator):
 # @cache_control
 #
 
-def cache_control(*x):
+def cache_control(*directives):
     class cache_control(decorator):
-        pass
+        def __call__(self, req, *a, **k):
+            try:
+                res = self.func(req, *a, **k)
+                res.update({ "cache-control": ", ".join(directives) })
+                return res
+            except HTTPException as e:
+                e.headers.update({ "cache-control": ", ".join(directives) })
+                raise
     return cache_control
+
+#
+# @vary
+#
+
+def vary(*headers):
+    class vary(decorator):
+        def __call__(self, req, *a, **k):
+            try:
+                res = self.func(req, *a, **k)
+                res.update({ "vary": ", ".join(headers) })
+                return res
+            except HTTPException as e:
+                e.headers.update({ "vary": ", ".join(headers) })
+                raise
+    return vary
 
 #
 # @app_cached
