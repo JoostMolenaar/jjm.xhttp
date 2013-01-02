@@ -365,7 +365,7 @@ accept = custom_accept({
     "application/xml"       : lambda content: xml.serialize(content),
     "application/xhtml+xml" : lambda content: xml.serialize(content),
     "text/html"             : lambda content: xml.serialize(content),
-    "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, ensure_ascii=False),
+    "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, ensure_ascii=False, indent=4),
 })
 
 #
@@ -399,7 +399,7 @@ def _parse_x_www_form_urlencoded(parsertype, variables):
         variables[key] = (cardinality, pattern)
 
     def parse(s):
-        items = [ item.split("=", 2) for item in s.split("&") ]
+        items = [ item.split("=", 2) for item in s.split("&") ] if s else []
         result = { key: list(v[-1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
 
         for (key, _) in variables.items():
@@ -622,7 +622,7 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
         raise HTTPException(httplib.NOT_FOUND, { "x-detail": e.strerror })
     result = {
         "x-status": httplib.OK,
-        "x-content": [content],
+        "x-content": content,
         "content-type": content_type,
         "content-length": len(content)
     }
@@ -648,6 +648,17 @@ class FileServer(Resource):
         if not os.path.abspath(fullname).startswith(os.path.abspath(self.path) + os.sep):
             raise HTTPException(httplib.FORBIDDEN)
         return serve_file(fullname, self.content_type, self.last_modified, self.etag)
+
+#
+# Redirector
+#
+
+class Redirector(Resource):
+    def __init__(self, location):
+        self.location = location
+
+    def GET(self, req):
+        raise HTTPException(httplib.SEE_OTHER, { "location": self.location })
 
 #
 # run_server

@@ -567,7 +567,7 @@ class TestCatcher(unittest.TestCase):
         response = app({ "x-request-method": "GET" })
         self.assertEqual(response, {
             "x-status": 500,
-            "x-content": "Internal Server Error: Exception\n\nfoo\n",
+            "x-content": "Internal Server Error: Exception (foo)\n",
             "content-type": "text/plain"
         }) 
 
@@ -669,6 +669,18 @@ class TestGet(unittest.TestCase):
             self.assertEquals(req["x-get"]["message"], u"hej, v\ufffdrld")
         app({ "x-query-string": "message=hej%2C%20v%E4rld" })
 
+    def test_single_1(self):
+        @xhttp.get({ "small?": "^(true|false)$" })
+        def app(req):
+            return req["x-get"]["small"]
+        self.assertEquals(app({ "x-query-string": "" }), None)
+        self.assertEquals(app({ "x-query-string": "small=true" }), "true")
+        self.assertEquals(app({ "x-query-string": "small=false" }), "false")
+        with self.assertRaises(xhttp.HTTPException) as ex:
+            app({ "x-query-string": "small=foo" })
+        self.assertEquals(ex.exception.status, 400)
+        self.assertEquals(ex.exception.message, "Bad Request")
+        self.assertEquals(ex.exception.headers, { "x-detail": "POST parameter 'spam' should occur exactly once" })
 #
 # TestPost
 #
@@ -1041,16 +1053,18 @@ class TestRanged(unittest.TestCase):
         self.assertEqual(response, {
             "x-status": 200,
             "x-content": "Hello, world!\n",
+            "accept-ranges": "bytes",
             "content-type": "text/plain"
         })
 
     def test_range(self):
-        response = self.app({ "range": xhttp.RangeHeader("bytes=0-5") })
+        response = self.app({ "range": xhttp.RangeHeader("bytes=0-4") })
         self.assertEqual(response, {
             "x-status": 206,
             "x-content": "Hello",
+            "accept-ranges": "bytes",
             "content-type": "text/plain",
-            "content-range": "0-5/14"
+            "content-range": "bytes 0-4/14"
         })
 
 class TestAppCached(unittest.TestCase):
