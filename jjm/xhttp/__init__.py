@@ -390,7 +390,7 @@ class catcher(decorator):
 # @get / @post
 #
 
-def _parse_x_www_form_urlencoded(parsertype, variables):
+def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
     for (key, pattern) in variables.items():
         cardinality = "1"
         if key[-1] in ["?", "+", "*"]:
@@ -399,7 +399,7 @@ def _parse_x_www_form_urlencoded(parsertype, variables):
         variables[key] = (cardinality, pattern)
 
     def parse(s):
-        items = [ item.split("=", 2) for item in s.split("&") ] if s else []
+        items = [ item.split("=", 2) for item in s.split(sep) ] if s else []
         result = { key: list(v[-1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
 
         for (key, _) in variables.items():
@@ -435,7 +435,7 @@ def _parse_x_www_form_urlencoded(parsertype, variables):
     return parse
 
 def get(variables):
-    parser = _parse_x_www_form_urlencoded("GET", variables)
+    parser = _parse_x_www_form_urlencoded("GET", variables, sep="&")
     class get_dec(decorator):
         def __call__(self, req, *a, **k):
             req["x-get"] = parser(req["x-query-string"])
@@ -443,7 +443,7 @@ def get(variables):
     return get_dec
 
 def post(variables):
-    parser = _parse_x_www_form_urlencoded("POST", variables)
+    parser = _parse_x_www_form_urlencoded("POST", variables, sep="&")
     class post_dec(decorator):
         def __call__(self, req, *a, **k):
             try:
@@ -454,6 +454,13 @@ def post(variables):
             req["x-post"] = parser(wsgi_input)
             return self.func(req, *a, **k)
     return post_dec
+    
+def cookie(variables):
+    parser = _parse_x_www_form_urlencoded("Cookie", variables, sep="; ")
+    class cookie_dec(decorator):
+        def __call__(self, req, *a, **k):
+            req["x-cookie"] = parser(req.get("cookie", ""))
+            return self.func(req, *a, **k)
 
 #
 # @if_modified_since
