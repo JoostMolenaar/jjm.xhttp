@@ -387,7 +387,7 @@ class catcher(decorator):
             return e.response()
 
 #
-# @get / @post
+# @get / @post / @cookie
 #
 
 def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
@@ -424,7 +424,7 @@ def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
                 raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Unknown {0} parameter {1!r}".format(parsertype, key) })
 
         for (key, values) in result.items():
-            result[key] = [ urllib.unquote(value).decode("utf8", errors="replace") for value in values ]
+            result[key] = [ urllib.unquote_plus(value).decode("utf8", errors="replace") for value in values ]
 
         for (key, (cardinality, _)) in variables.items():
             if cardinality in ["1", "?"]:
@@ -461,6 +461,23 @@ def cookie(variables):
         def __call__(self, req, *a, **k):
             req["x-cookie"] = parser(req.get("cookie", ""))
             return self.func(req, *a, **k)
+    return cookie_dec
+
+#
+# @session
+#
+
+def session(cookie_key, sessions):
+    class session(xhttp.decorator):
+        def __call__(self, request, *a, **k):
+            if 'x-cookie' in request and cookie_key in request['x-cookie']:
+                session_id = request['x-cookie'][cookie_key]
+                if session_id in sessions:
+                    request['x-session'] = sessions[session_id]
+                    return self.func(request, *a, **k)
+            request['x-session'] = None
+            return self.func(request, *a, **k)
+    return session
 
 #
 # @if_modified_since

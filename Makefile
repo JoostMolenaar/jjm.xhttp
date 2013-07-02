@@ -7,6 +7,12 @@ TARGET = /srv/$(NAME)
 TARGET_USER ?= www-data
 TARGET_GROUP ?= www-data
 
+ifeq ($(shell id -n -u),root)
+    SUDO =
+else
+    SUDO = sudo
+endif
+
 QUIET ?= --quiet
 
 PIP_CACHE = .cache
@@ -22,19 +28,6 @@ SITE_PACKAGES = $(ENV)/lib/python2.7/site-packages
 test: runtime-test
 	cd $(ENV) ; bin/python -m $(MAIN)
 
-unittest:
-	cd tests ; ../$(ENV)/bin/python -m unittest discover
-
-coverage:
-	@rm -rf tests/htmlcov
-	cd tests ; ../$(ENV)/bin/coverage erase
-	-cd tests ; ../$(ENV)/bin/coverage run --branch -m unittest discover
-	cd tests ; ../$(ENV)/bin/coverage report
-	cd tests ; ../$(ENV)/bin/coverage html
-
-continuous:
-	inotifywait -r . -q -m -e CLOSE_WRITE | grep --line-buffered '^.*\.py$$' | while read line; do clear; date; echo $$line; echo; make coverage; done
-
 run: runtime-live
 	cd $(ENV) ; bin/python -m $(MAIN)
 
@@ -45,9 +38,9 @@ run: runtime-live
 deploy: runtime-live
 	cp -r $(ENV) staging
 	virtualenv --relocatable staging $(QUIET) >/dev/null
-	sudo chown -R $(TARGET_USER).$(TARGET_GROUP) staging
-	sudo rm -rf $(TARGET)
-	sudo mv staging $(TARGET)
+	$(SUDO) chown -R $(TARGET_USER).$(TARGET_GROUP) staging
+	$(SUDO) rm -rf $(TARGET)
+	$(SUDO) mv staging $(TARGET)
 
 #
 # runtime
@@ -82,7 +75,7 @@ deploy-code:
 	@find $(ENV) -name top_level.txt -path '*$(PIP_NAME)-*' -exec sh -c 'echo $(PIP_NAME) > {}' ';'
 
 undeploy-code:
-	$(ENV)/bin/pip uninstall --yes $(PIP_NAME) $(QUIET) 2>&1 1>/dev/null || true
+	$(ENV)/bin/pip uninstall --yes $(PIP_NAME) $(QUIET) || true
 
 link-code:
 	ln -snf $(shell pwd)/$(subst .,/,$(PIP_NAME)) $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME))
