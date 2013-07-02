@@ -468,7 +468,7 @@ def cookie(variables):
 #
 
 def session(cookie_key, sessions):
-    class session(xhttp.decorator):
+    class session(decorator):
         def __call__(self, request, *a, **k):
             if 'x-cookie' in request and cookie_key in request['x-cookie']:
                 session_id = request['x-cookie'][cookie_key]
