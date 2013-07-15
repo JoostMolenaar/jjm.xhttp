@@ -3,9 +3,9 @@ from distutils.core import setup
 setup(
     author='Joost Molenaar',
     author_email='j.j.molenaar@gmail.com',
-    name='jjm.xhttp',
-    packages=['jjm.xhttp'],
-    url='https://github.com/JoostMolenaar/jjm.xhttp',
+    name='xhttp',
+    packages=['xhttp'],
+    url='https://github.com/j0057/xhttp',
     version='0.1.0'
 )
 

@@ -4,7 +4,7 @@ import httplib
 import re
 import urllib
 
-from jjm import xhttp
+import xhttp
 
 # wsgi
 def hello_world_1(env, start_response):

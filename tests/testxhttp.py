@@ -4,7 +4,7 @@ import os.path
 
 from StringIO import StringIO
 
-from jjm import xhttp
+import xhttp
 
 #
 # TestDecorator
