@@ -517,7 +517,7 @@ class TestAccept(unittest.TestCase):
         })
         self.assertEqual(response, {
             "x-status": 200,
-            "x-content": "{\"message\": \"Hell\xc3\xb8, world! \\\">_<\\\"\"}",
+            "x-content": "{\n    \"message\": \"Hell\xc3\xb8, world! \\\">_<\\\"\"\n}",
             "content-type": "application/json; charset=UTF-8",
         })
 
@@ -680,7 +680,7 @@ class TestGet(unittest.TestCase):
             app({ "x-query-string": "small=foo" })
         self.assertEquals(ex.exception.status, 400)
         self.assertEquals(ex.exception.message, "Bad Request")
-        self.assertEquals(ex.exception.headers, { "x-detail": "POST parameter 'spam' should occur exactly once" })
+        self.assertEquals(ex.exception.headers, { "x-detail": "GET parameter 'small' has bad value 'foo'" })
 #
 # TestPost
 #
@@ -920,7 +920,7 @@ class TestServeFile(unittest.TestCase):
         result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=False)
         self.assertEqual(result, {
             "x-status": 200,
-            "x-content": ["Hello, world!\n"],
+            "x-content": "Hello, world!\n",
             "content-type": "text/plain",
             "content-length": 14,
         })
@@ -929,7 +929,7 @@ class TestServeFile(unittest.TestCase):
         result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=True, etag=False)
         self.assertEqual(result, {
             "x-status": 200,
-            "x-content": ["Hello, world!\n"],
+            "x-content": "Hello, world!\n",
             "content-type": "text/plain",
             "content-length": 14,
             "last-modified": xhttp.DateHeader(os.path.getmtime("data/hello-world.txt"))
@@ -939,7 +939,7 @@ class TestServeFile(unittest.TestCase):
         result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=True)
         self.assertEqual(result, {
             "x-status": 200,
-            "x-content": ["Hello, world!\n"],
+            "x-content": "Hello, world!\n",
             "content-type": "text/plain",
             "content-length": 14,
             "etag": "d9014c4624844aa5bac314773d6b689ad467fa4e1d1a50a1b8a99d5a95f72ff5"
@@ -980,7 +980,7 @@ class TestFileServer(unittest.TestCase):
         response = app({ "x-request-method": "GET" }, "hello-world.txt")
         self.assertEqual(response, {
             "x-status": 200,
-            "x-content": ["Hello, world!\n"],
+            "x-content": "Hello, world!\n",
             "content-type": "text/plain",
             "content-length": 14
         })
