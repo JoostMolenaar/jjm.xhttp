@@ -47,7 +47,7 @@ def hello_world_2(req):
 
 # xhttp resource
 class HelloWorld(xhttp.Resource):
-    @xhttp.negotiate
+    @xhttp.accept
     def GET(self, req):
         greeting = { 
             "message": "Hello, world!" 

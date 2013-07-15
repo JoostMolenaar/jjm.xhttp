@@ -18,7 +18,7 @@ import httplib as status
 import dateutil
 import dateutil.parser
 
-from .. import xml as xml
+import xmlist
 
 # XXX: for negotiating accept-charset, everything should be unicode objects. or else assume us-ascii
 # XXX: be more flexible about x-content having to be iterable? if it's str/basestring/unicode, put it inside a list?
@@ -362,9 +362,9 @@ def custom_accept(serializers):
     return accept 
 
 accept = custom_accept({ 
-    "application/xml"       : lambda content: xml.serialize(content),
-    "application/xhtml+xml" : lambda content: xml.serialize(content),
-    "text/html"             : lambda content: xml.serialize(content),
+    "application/xml"       : lambda content: xmlist.serialize(content),
+    "application/xhtml+xml" : lambda content: xmlist.serialize(content),
+    "text/html"             : lambda content: xmlist.serialize(content),
     "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, ensure_ascii=False, indent=4),
 })
 
