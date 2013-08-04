@@ -5,7 +5,6 @@ PIP_REQ = requirements.txt
 
 MAIN ?= xhttp.test
 
-PKG_BASE = file://$(shell readlink -f ..)
 PKG = xmlist
 
 server:

@@ -19,6 +19,8 @@ PIP_CACHE = .cache
 
 SITE_PACKAGES = $(ENV)/lib/python2.7/site-packages
 
+PKG_BASE ?= $(shell readlink -f ..)
+
 .PHONY: run
 
 #
@@ -46,9 +48,9 @@ deploy: runtime-live
 # runtime
 #
 
-runtime-live: $(ENV) deploy-pkgs unlink-code unlink-data deploy-code deploy-data
+runtime-live: $(ENV) unlink-pkgs unlink-code unlink-data deploy-pkgs deploy-code deploy-data
 
-runtime-test: $(ENV) deploy-pkgs undeploy-code undeploy-data link-code link-data
+runtime-test: $(ENV) undeploy-pkgs undeploy-code undeploy-data link-pkgs link-code link-data
 
 $(ENV): 
 	virtualenv $(ENV) $(QUIET)
@@ -59,23 +61,37 @@ $(ENV):
 # packages
 #
 
-deploy-pkgs: $(addprefix $(ENV)/lib/python2.7/site-packages/.egg-,$(PKG))
+deploy-pkgs: $(addprefix $(SITE_PACKAGES)/.egg-,$(PKG))
 
-$(ENV)/lib/python2.7/site-packages/.egg-%:
-	$(ENV)/bin/pip install --upgrade $(PKG_BASE)/$* $(QUIET)
-	@find $(ENV) -name top_level.txt -path '*$*-*' -exec sh -c 'echo $* > {}' ';'
+$(SITE_PACKAGES)/.egg-%:
+	$(ENV)/bin/pip install --upgrade file://$(PKG_BASE)/$* $(QUIET)
 	@touch $@
+
+undeploy-pkgs: $(addprefix undeploy-pkg-,$(PKG))
+
+undeploy-pkg-%:
+	@$(ENV)/bin/pip uninstall --yes $* $(QUIET) 1>/dev/null 2>&1 || true
+	@rm -f $(SITE_PACKAGES)/.egg-$*
+
+link-pkgs: $(addprefix link-pkg-,$(PKG))
+
+link-pkg-%:
+	ln -snf $(PKG_BASE)/$*/$* $(SITE_PACKAGES)/$*
+
+unlink-pkgs: $(addprefix unlink-pkg-,$(PKG))
+
+unlink-pkg-%:
+	@test -L $(SITE_PACKAGES)/$* && rm $(SITE_PACKAGES)/$*
 
 #
 # code
 #
 
 deploy-code:
-	$(ENV)/bin/pip install --upgrade $(PKG_BASE)/$(PIP_NAME) $(QUIET)
-	@find $(ENV) -name top_level.txt -path '*$(PIP_NAME)-*' -exec sh -c 'echo $(PIP_NAME) > {}' ';'
+	$(ENV)/bin/pip install --upgrade file://$(PKG_BASE)/$(PIP_NAME) $(QUIET)
 
 undeploy-code:
-	$(ENV)/bin/pip uninstall --yes $(PIP_NAME) $(QUIET) || true
+	@$(ENV)/bin/pip uninstall --yes $(PIP_NAME) $(QUIET) 1>/dev/null 2>&1 || true
 
 link-code:
 	ln -snf $(shell pwd)/$(subst .,/,$(PIP_NAME)) $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME))
