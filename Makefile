@@ -1,8 +1,9 @@
 
 include Makefile.inc
 
-ENV = env
-SITE_PACKAGES = $(ENV)/lib/python2.7/site-packages
+ENV ?= env
+ENV_VERSION ?= python2.7
+SITE_PACKAGES = $(ENV)/lib/$(ENV_VERSION)/site-packages
 
 TARGET = /srv/$(NAME)
 TARGET_USER ?= www-data
@@ -52,10 +53,10 @@ runtime-live: $(ENV) $(ENV)/.$(PIP_REQ) unlink-pkgs unlink-code unlink-data depl
 runtime-test: $(ENV) $(ENV)/.$(PIP_REQ) undeploy-pkgs undeploy-code undeploy-data link-pkgs link-code link-data
 
 $(ENV): 
-	virtualenv $(ENV) $(QUIET)
+	virtualenv --python=$(ENV_VERSION) $(ENV) $(QUIET)
 	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) 'distribute>=0.6.30' $(QUIET)
 
-$(ENV)/.$(PIP_REQ):
+$(ENV)/.$(PIP_REQ): $(PIP_REQ)
 	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) --requirement $(PIP_REQ) $(QUIET)
 	@touch $@
 
@@ -112,7 +113,7 @@ $(ENV)/.data-%: $*
 	@touch $@
 
 undeploy-dir-%:
-	@rm -rf $(ENV)/$*
+	@test -f $(ENV)/.data-$* && rm -rf $(ENV)/$* || true
 	@rm -f $(ENV)/.data-$*
 
 link-data: $(addprefix $(ENV)/.datalink-,$(STATIC_DIRS))
@@ -120,11 +121,11 @@ link-data: $(addprefix $(ENV)/.datalink-,$(STATIC_DIRS))
 unlink-data: $(addprefix unlink-dir-,$(STATIC_DIRS))
 
 $(ENV)/.datalink-%:
-	ln -snf $(shell pwd)/$* $(ENV)
+	ln -snf $(shell pwd)/$* $(ENV)/$*
 	@touch $@
 
 unlink-dir-%:
-	@test -L $(ENV)/$* && rm -f $(ENV)/$* || true
+	@test -f $(ENV)/.datalink-$* && rm -f $(ENV)/$* || true
 	@rm -f $(ENV)/.datalink-$*
 
 #
@@ -137,4 +138,14 @@ clean:
 really-clean: clean
 	rm -rf $(PIP_CACHE)
 
+# unit testing
+
+unit-test: runtime-test
+	cd tests ; ../$(ENV)/bin/python -m unittest discover
+
+coverage: runtime-test
+	rm -rf tests/htmlcov
+	rm -f tests/.coverage
+	cd tests ; ../$(ENV)/bin/coverage run --branch -m unittest discover
+	cd tests ; ../$(ENV)/bin/coverage html
 
