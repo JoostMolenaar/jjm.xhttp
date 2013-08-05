@@ -2,6 +2,7 @@
 include Makefile.inc
 
 ENV = env
+SITE_PACKAGES = $(ENV)/lib/python2.7/site-packages
 
 TARGET = /srv/$(NAME)
 TARGET_USER ?= www-data
@@ -16,8 +17,6 @@ endif
 QUIET ?= --quiet
 
 PIP_CACHE = .cache
-
-SITE_PACKAGES = $(ENV)/lib/python2.7/site-packages
 
 PKG_BASE ?= $(shell readlink -f ..)
 
@@ -48,80 +47,85 @@ deploy: runtime-live
 # runtime
 #
 
-runtime-live: $(ENV) unlink-pkgs unlink-code unlink-data deploy-pkgs deploy-code deploy-data
+runtime-live: $(ENV) $(ENV)/.$(PIP_REQ) unlink-pkgs unlink-code unlink-data deploy-pkgs deploy-code deploy-data
 
-runtime-test: $(ENV) undeploy-pkgs undeploy-code undeploy-data link-pkgs link-code link-data
+runtime-test: $(ENV) $(ENV)/.$(PIP_REQ) undeploy-pkgs undeploy-code undeploy-data link-pkgs link-code link-data
 
 $(ENV): 
 	virtualenv $(ENV) $(QUIET)
 	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) 'distribute>=0.6.30' $(QUIET)
+
+$(ENV)/.$(PIP_REQ):
 	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) --requirement $(PIP_REQ) $(QUIET)
+	@touch $@
 
 #
 # packages
 #
 
-deploy-pkgs: $(addprefix $(SITE_PACKAGES)/.egg-,$(PKG))
+deploy-pkgs: $(addprefix $(ENV)/.pkg-,$(PKG))
 
-$(SITE_PACKAGES)/.egg-%:
+$(ENV)/.pkg-%:
 	$(ENV)/bin/pip install --upgrade file://$(PKG_BASE)/$* $(QUIET)
 	@touch $@
 
 undeploy-pkgs: $(addprefix undeploy-pkg-,$(PKG))
 
 undeploy-pkg-%:
-	@$(ENV)/bin/pip uninstall --yes $* $(QUIET) 1>/dev/null 2>&1 || true
-	@rm -f $(SITE_PACKAGES)/.egg-$*
+	@test -f $(ENV)/.pkg-$* && $(ENV)/bin/pip uninstall --yes $* $(QUIET) 1>/dev/null 2>&1 || true
+	@rm -f $(ENV)/.pkg-$*
 
-link-pkgs: $(addprefix link-pkg-,$(PKG))
+link-pkgs: $(addprefix $(ENV)/.pkglink-,$(PKG))
 
-link-pkg-%:
+$(ENV)/.pkglink-%:
 	ln -snf $(PKG_BASE)/$*/$* $(SITE_PACKAGES)/$*
+	@touch $@
 
 unlink-pkgs: $(addprefix unlink-pkg-,$(PKG))
 
 unlink-pkg-%:
-	@test -L $(SITE_PACKAGES)/$* && rm $(SITE_PACKAGES)/$*
+	@test -L $(SITE_PACKAGES)/$* && rm $(SITE_PACKAGES)/$* || true
+	@rm -f $(ENV)/.pkglink-$*
 
 #
 # code
 #
 
-deploy-code:
-	$(ENV)/bin/pip install --upgrade file://$(PKG_BASE)/$(PIP_NAME) $(QUIET)
+deploy-code: $(ENV)/.pkg-$(PIP_NAME)
 
-undeploy-code:
-	@$(ENV)/bin/pip uninstall --yes $(PIP_NAME) $(QUIET) 1>/dev/null 2>&1 || true
+undeploy-code: undeploy-pkg-$(PIP_NAME)
 
-link-code:
-	ln -snf $(shell pwd)/$(subst .,/,$(PIP_NAME)) $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME))
+link-code: $(ENV)/.pkglink-$(PIP_NAME)
 
-unlink-code:
-	@test -L $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME)) && rm $(SITE_PACKAGES)/$(subst .,/,$(PIP_NAME)) || true
+unlink-code: unlink-pkg-$(PIP_NAME)
 
 #
 # data
 #
 
-deploy-data: $(addprefix deploy-dir-,$(STATIC_DIRS))
+deploy-data: $(addprefix $(ENV)/.data-,$(STATIC_DIRS))
 
 undeploy-data: $(addprefix undeploy-dir-,$(STATIC_DIRS))
 
-deploy-dir-%:
+$(ENV)/.data-%: $*
 	cp -r $* $(ENV)
+	@touch $@
 
 undeploy-dir-%:
 	@rm -rf $(ENV)/$*
+	@rm -f $(ENV)/.data-$*
 
-link-data: $(addprefix link-dir-,$(STATIC_DIRS))
+link-data: $(addprefix $(ENV)/.datalink-,$(STATIC_DIRS))
 
 unlink-data: $(addprefix unlink-dir-,$(STATIC_DIRS))
 
-link-dir-%:
-	ln -snf $(shell pwd)/$(subst link-dir-,,$@) $(ENV)
+$(ENV)/.datalink-%:
+	ln -snf $(shell pwd)/$* $(ENV)
+	@touch $@
 
 unlink-dir-%:
 	@test -L $(ENV)/$* && rm -f $(ENV)/$* || true
+	@rm -f $(ENV)/.datalink-$*
 
 #
 # clean
