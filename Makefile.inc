@@ -9,6 +9,3 @@ PKG = xmlist
 
 server:
 	cd $(ENV) ; bin/python -m xhttp.test
-
-unittest:
-	cd tests ; ../$(ENV)/bin/python -m unittest testxhttp
