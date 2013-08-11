@@ -7,5 +7,5 @@ MAIN ?= xhttp.test
 
 PKG = xmlist
 
-server:
+server: runtime-test
 	cd $(ENV) ; bin/python -m xhttp.test
