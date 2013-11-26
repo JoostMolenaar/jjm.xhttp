@@ -219,9 +219,11 @@ class xhttp_app(decorator):
         response_code = "{0} {1}".format(response_code, status.responses[response_code])
 
         content = response.pop("x-content", b"")
+        if callable(content):
+            content = content()
         if isinstance(content, str):
             raise Exception("Need to use @accept_encoding to send Unicode to client")
-        elif isinstance(content, bytes):
+        if isinstance(content, bytes):
             response["content-length"] = len(content)
             content = [content]
 

@@ -304,6 +304,23 @@ class TestXhttpAppDecorator(unittest.TestCase):
         result = app(environ, start_response)
         self.assertEqual(result, [b"Hello,", b" ", b"world!", b"\n"])
 
+    def test_callable(self):
+        @xhttp.xhttp_app
+        def app(request):
+            return {
+                "x-status": xhttp.status.OK,
+                "x-content": lambda: b"Hello, world!\n",
+                "content-type": "text/plain" }
+        def start_response(status, headers):
+            self.assertEqual(status, "200 OK")
+            self.assertEqual(headers, [
+                ("Content-Length", "14"),
+                ("Content-Type", "text/plain") ])
+        environ = gen_environ("GET", "/", {})
+        result = app(environ, start_response)
+        self.assertEqual(result, ["Hello, world!\n"])
+            
+
 #
 # TestResource
 #
