@@ -1,13 +1,9 @@
 *.pyc
-__pycache__
-env*
-.coverage2*
-.coverage3*
-htmlcov2*
-htmlcov3*
-.cache2*
-.cache3*
-*.swp
-dist
+env27
 MANIFEST
+MANIFEST.in
+Makefile.in
+requirements.txt
+*.egg-info
+*.swp
 

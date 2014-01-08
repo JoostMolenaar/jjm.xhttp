@@ -684,6 +684,8 @@ class ranged(decorator):
         if "x-content" not in res:
             return res
         content = res["x-content"]
+        if callable(content):
+            content = content()
         length = len(content)
         start = req["range"].start
         stop = req["range"].stop if req["range"].stop is not None else (length - 1)
