@@ -46,7 +46,7 @@ ALL_DEPS = import pip
 ALL_DEPS += ; D = { d.key: d for d in pip.get_installed_distributions() } 
 ALL_DEPS += ; F = lambda xs: sum([ F(x) if isinstance(x, list) else [x] for x in xs ], []) 
 ALL_DEPS += ; R = lambda k: [k] + F([ R(r.key) for r in D[k].requires() ]) 
-ALL_DEPS += ; print " ".join(R("__PKG__") if "__PKG__" in D else [])
+ALL_DEPS += ; print " ".join(set(R("__PKG__")) if "__PKG__" in D else [])
 
 ALL_DEPS_HACK = `cd $(ENV) ; bin/python -c '$(ALL_DEPS)'`
 
@@ -56,10 +56,13 @@ alldeps:
 	@echo PIP_NAME = $(PIP_NAME)
 	echo $(subst __PKG__,$(PIP_NAME),$(ALL_DEPS_HACK))
 
+lspkg:
+	ls -l $(ENV)/lib/$(PY_VERSION)/site-packages
+
 # requirements.txt
 
 $(PIP_REQ): $(ENV) setup.py
-	$(ENV)/bin/python setup.py --package-names > requirements.txt
+	$(ENV)/bin/python setup.py -q metadata -k x_dist_names > requirements.txt
 
 # deploy
 
@@ -78,7 +81,7 @@ runtime-test: $(ENV) undeploy-code link-pkgs link-code link-data
 
 $(ENV): $(WHL)-ok
 	virtualenv --python=$(PY_VERSION) $(ENV) $(QUIET)
-	$(ENV)/bin/pip install --no-index --find-links=$(WHL) --use-wheel --upgrade pip setuptools wheel $(QUIET)
+	$(ENV)/bin/pip install --no-index --find-links=$(WHL) --use-wheel --upgrade --requirement build/req.txt $(QUIET)
 
 # packages
 
@@ -145,8 +148,8 @@ download: $(ENV) $(PIP_REQ)
 	$(ENV)/bin/pip install --no-use-wheel --download $(WHL) --requirement $(PIP_REQ) $(QUIET)
 	$(ENV)/bin/pip wheel --no-index --find-links=$(WHL) --use-wheel --wheel-dir=$(WHL) --requirement $(PIP_REQ) $(QUIET)
 
-MANIFEST.in: setup.py
-	./setup.py --static-dirs | sed 's/^/recursive-include / ; s/$$/ *.*/' > MANIFEST.in
+MANIFEST.in: setup.py | $(ENV)
+	$(ENV)/bin/python ./setup.py -q metadata --key=x_static_dirs | sed 's/^/recursive-include / ; s/$$/ *.*/' > MANIFEST.in
 
 release: $(ENV) MANIFEST.in release-pkg-$(PIP_NAME) 
 
@@ -190,9 +193,10 @@ profile:
 # caching of some things that don't change a lot
 
 Makefile.in: setup.py
-	@echo "PIP_NAME = $(shell ./setup.py --name)" > Makefile.in
+	@echo generating Makefile.in from setup.py
+	@echo "PKG_BASE = $(shell readlink -f ..)" > Makefile.in
 	@echo "PIP_REQ = requirements.txt" >> Makefile.in
-	@echo "PKG = $(shell ./setup.py --repo-names)" >> Makefile.in
-	@echo "PKG_BASE = $(shell readlink -f ..)" >> Makefile.in
-	@echo "STATIC_DIRS = $(shell ./setup.py --static-dirs)" >> Makefile.in
+	@echo "PIP_NAME = $(shell ./setup.py --q metadata -k name)" >> Makefile.in
+	@echo "PKG = $(shell ./setup.py -q metadata -k x_repo_names)" >> Makefile.in
+	@echo "STATIC_DIRS = $(shell ./setup.py -q metadata -k x_static_dirs)" >> Makefile.in
 
