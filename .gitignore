@@ -5,5 +5,7 @@ MANIFEST.in
 Makefile.in
 requirements.txt
 *.egg-info
+.coverage27
+htmlcov27
 *.swp
 

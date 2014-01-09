@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 
 repo_names = ['xmlist']
-dist_names = ['python-dateutil']
+dist_names = ['python-dateutil', 'coverage']
 static_dirs = []
 
 import os
