@@ -8,7 +8,7 @@ TAG = $(subst .,,$(subst python,,$(PY_VERSION)))
 
 ENV = env$(TAG)
 
-WHL = ~/pypkg$(TAG)
+WHL = $(HOME)/.pypkg$(TAG)
 
 COVERAGE_FILE = .coverage$(TAG)
 COVERAGE_OUTPUT_DIR = htmlcov$(TAG)
