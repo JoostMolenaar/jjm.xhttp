@@ -8,7 +8,7 @@ TAG = $(subst .,,$(subst python,,$(PY_VERSION)))
 
 ENV = env$(TAG)
 
-WHL = /tmp/pypkg$(TAG)
+WHL = ~/pypkg$(TAG)
 
 COVERAGE_FILE = .coverage$(TAG)
 COVERAGE_OUTPUT_DIR = htmlcov$(TAG)
@@ -16,7 +16,7 @@ COVERAGE_OUTPUT_DIR = htmlcov$(TAG)
 export COVERAGE_FILE
 export COVERAGE_OUTPUT_DIR
 
-TARGET = /srv/$(PIP_NAME)
+TARGET ?= /srv/$(PIP_NAME)
 TARGET_USER ?= www-data
 TARGET_GROUP ?= www-data
 
@@ -80,7 +80,7 @@ runtime-live: $(ENV) unlink-code unlink-data deploy-code
 runtime-test: $(ENV) undeploy-code link-pkgs link-code link-data
 
 $(ENV): $(WHL)-ok
-	virtualenv --python=$(PY_VERSION) $(ENV) $(QUIET)
+	virtualenv --python=$(PY_VERSION) --extra-search-dir=$(WHL) $(ENV) $(QUIET)
 	$(ENV)/bin/pip install --no-index --find-links=$(WHL) --use-wheel --upgrade --requirement build/req.txt $(QUIET)
 
 # packages
@@ -111,7 +111,9 @@ unlink-pkg-%:
 
 # code
 
-deploy-code: $(ENV)/.pkg-$(PIP_NAME)
+deploy-code:
+	$(ENV)/bin/pip install --no-index --find-links=$(WHL) --use-wheel --upgrade $(PIP_NAME)==$(PIP_VERSION) $(QUIET)
+	@touch $(ENV)/.pkg-$(PIP_NAME)
 
 undeploy-code: undeploy-pkg-$(PIP_NAME)
 
@@ -139,8 +141,8 @@ $(WHL)-ok:
 	mkdir -p $(WHL)
 	virtualenv pkg-env $(QUIET)
 	pkg-env/bin/pip install --upgrade pip setuptools wheel $(QUIET)
-	pkg-env/bin/pip install --no-use-wheel --download $(WHL) pip setuptools wheel $(QUIET)
-	pkg-env/bin/pip wheel --no-index --find-links=$(WHL) --use-wheel --wheel-dir=$(WHL) pip setuptools wheel $(QUIET)
+	pkg-env/bin/pip install --no-use-wheel --download $(WHL) -r build/req.txt $(QUIET)
+	pkg-env/bin/pip wheel --no-index --find-links=$(WHL) --use-wheel --wheel-dir=$(WHL) -r build/req.txt $(QUIET)
 	rm -rf pkg-env
 	touch $(WHL)-ok
 
@@ -151,12 +153,10 @@ download: $(ENV) $(PIP_REQ)
 MANIFEST.in: setup.py | $(ENV)
 	$(ENV)/bin/python ./setup.py -q metadata --key=x_static_dirs | sed 's/^/recursive-include / ; s/$$/ *.*/' > MANIFEST.in
 
-release: $(ENV) MANIFEST.in release-pkg-$(PIP_NAME) 
-
-release-pkg-%:
-	rm -f $(WHL)/$*-$(shell $(PKG_BASE)/$*/setup.py --version)-*.whl
-	cd $(PKG_BASE)/$* ; ./setup.py sdist --dist-dir=$(WHL) $(QUIET) 1>/dev/null 2>&1 
-	$(ENV)/bin/pip wheel --no-index --find-links=$(WHL) --use-wheel --wheel-dir=$(WHL) $* $(QUIET)
+release: MANIFEST.in | $(ENV)
+	rm -f $(WHL)/$(PIP_NAME)-$(PIP_VERSION)-*.whl
+	./setup.py $(QUIET) sdist --dist-dir=$(WHL) 
+	$(ENV)/bin/pip wheel --no-index --find-links=$(WHL) --use-wheel --wheel-dir=$(WHL) $(PIP_NAME)==$(PIP_VERSION) $(QUIET)
 
 #
 # clean
@@ -196,7 +196,8 @@ Makefile.in: setup.py
 	@echo generating Makefile.in from setup.py
 	@echo "PKG_BASE = $(shell readlink -f ..)" > Makefile.in
 	@echo "PIP_REQ = requirements.txt" >> Makefile.in
-	@echo "PIP_NAME = $(shell ./setup.py --q metadata -k name)" >> Makefile.in
+	@echo "PIP_NAME = $(shell ./setup.py -q metadata -k name)" >> Makefile.in
+	@echo "PIP_VERSION = $(shell ./setup.py -q metadata -k version)" >> Makefile.in
 	@echo "PKG = $(shell ./setup.py -q metadata -k x_repo_names)" >> Makefile.in
 	@echo "STATIC_DIRS = $(shell ./setup.py -q metadata -k x_static_dirs)" >> Makefile.in
 

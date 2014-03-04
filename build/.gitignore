@@ -2,3 +2,4 @@
 !Makefile
 !.gitignore
 !req.txt
+!git-post-receive-hook
