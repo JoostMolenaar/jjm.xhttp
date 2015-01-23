@@ -1,5 +1,0 @@
-pip
-wheel
-setuptools
-setuptools-metadata
-
