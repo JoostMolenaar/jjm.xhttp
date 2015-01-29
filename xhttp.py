@@ -509,10 +509,12 @@ def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
         items = [ item.split("=", 2) for item in s.split(sep) ] if s else []
         result = { key: list(v[-1] for v in val) for (key, val) in itertools.groupby(items, key=lambda item: item[0]) }
 
+        # make sure all keys exist in result
         for (key, _) in variables.items():
             if key not in result:
                 result[key] = []
 
+        # check all keys have an acceptable number of values
         for (key, (cardinality, _)) in variables.items():
             if cardinality == "1" and len(result[key]) != 1:
                 raise HTTPBadRequest(detail="{0} parameter {1!r} should occur exactly once".format(parsertype, key))
@@ -521,22 +523,25 @@ def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
             elif cardinality == "+" and len(result[key]) < 1:
                 raise HTTPBadRequest(detail="{0} parameter {1!r} should occur at least once".format(parsertype, key))
 
-        for (key, (_, pattern)) in variables.items():
-            for value in result[key]:
-                if not pattern.match(value):
-                #if not re.match(pattern, value):
-                    raise HTTPBadRequest(detail="{0} parameter {1!r} has bad value {2!r}".format(parsertype, key, value))
-
+        # check that all keys are known
         for (key, values) in result.items():
             if key not in variables:
                 raise HTTPBadRequest(detail="Unknown {0} parameter {1!r}".format(parsertype, key))
 
+        # urldecode values
         for (key, values) in result.items():
             if sys.version_info[0] == 3:
                 result[key] = [ unquote_plus(value) for value in values ]
             elif sys.version_info[0] == 2:
                 result[key] = [ unquote_plus(value).decode("utf8", errors="replace") for value in values ]
 
+        # check that all values comply with regex pattern
+        for (key, (_, pattern)) in variables.items():
+            for value in result[key]:
+                if not pattern.match(value):
+                    raise HTTPBadRequest(detail="{0} parameter {1!r} has bad value {2!r}".format(parsertype, key, value))
+
+        # if cardinality is 1 or ?, store single value instead of list of values
         for (key, (cardinality, _)) in variables.items():
             if cardinality in ["1", "?"]:
                 result[key] = result[key][0] if result[key] else None
