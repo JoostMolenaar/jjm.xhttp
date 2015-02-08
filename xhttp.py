@@ -201,7 +201,7 @@ class RangeHeader(object):
 #
 
 class xhttp_app(decorator):
-    def __call__(self, environment, start_response):
+    def parse_request(self, env):
         request = { name[5:].lower().replace('_', '-'): value 
                     for (name, value) in environment.items() 
                     if name.startswith("HTTP_") }
@@ -213,11 +213,9 @@ class xhttp_app(decorator):
                          for (name, parse) in self.PARSERS.items()
                          if name in request })
 
-        response = self.func(request)
+        return request
 
-        response_code = response.pop("x-status")
-        response_code = "{0} {1}".format(response_code, status.responses[response_code])
-
+    def create_content(self, response):
         content = response.pop("x-content", b"")
         if callable(content):
             content = content()
@@ -226,11 +224,21 @@ class xhttp_app(decorator):
         if isinstance(content, bytes):
             response["content-length"] = len(content)
             content = [content]
+        return content
 
-        if sys.version_info[0] == 3:
-            headers = [ (key.title(), str(response[key])) for key in sorted(response.keys()) ]
-        else:
-            headers = [ (key.title(), bytes(response[key])) for key in sorted(response.keys()) ]
+    def __call__(self, environment, start_response):
+        request = self.parse_request(env)
+
+        response = self.func(request)
+
+        response_code = response.pop("x-status")
+        response_code = "{0} {1}".format(response_code, status.responses[response_code])
+
+        content = self.create_content(response)
+
+        header_type = str if sys.version_info[0] == 3 else bytes
+        headers = [ (key.title(), header_type(response[key]))
+                    for key in sorted(response.keys()) ]
 
         start_response(response_code, headers)
         return content
