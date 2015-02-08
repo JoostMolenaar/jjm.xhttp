@@ -270,38 +270,6 @@ class xhttp_app(decorator):
     }
         
 #
-# class WSGIAdapter
-#
-
-class WSGIAdapter(object):
-    @xhttp_app
-    def __call__(self, *a, **k):
-        return super(WSGIAdapter, self)(req, *a, **k)
-
-#
-# metaclass as_wsgi_app 
-#
-
-class as_wsgi_app(type):
-    def __new__(cls, name, bases, attrs):
-        C = super(as_wsgi_app, cls).__new__(cls, name, bases, attrs)
-        C.__call__ = lambda self, *a, **k: super(C, self).__call__(*a, **k)
-        C.__call__ = xhttp_app(C.__call__)
-        return C
-
-#
-# metametaclass extended_with 
-#
-
-def extended_with(C):
-    class extended_with(type):
-        def __new__(cls, name, bases, attrs):
-            attrs.update({ k: v for (k, v) in C.__dict__.items() if isinstance(v, collections.Callable) })
-            new_class = super(extended_with, cls).__new__(cls, name, bases, attrs)
-            return new_class
-    return extended_with
-
-#
 # class Resource
 #
 
@@ -731,6 +699,38 @@ class Redirector(Resource):
 
     def GET(self, req):
         raise HTTPSeeOther(self.location)
+
+#
+# class WSGIAdapter
+#
+
+class WSGIAdapter(object):
+    @xhttp_app
+    def __call__(self, *a, **k):
+        return super(WSGIAdapter, self)(req, *a, **k)
+
+#
+# metaclass as_wsgi_app 
+#
+
+class as_wsgi_app(type):
+    def __new__(cls, name, bases, attrs):
+        C = super(as_wsgi_app, cls).__new__(cls, name, bases, attrs)
+        C.__call__ = lambda self, *a, **k: super(C, self).__call__(*a, **k)
+        C.__call__ = xhttp_app(C.__call__)
+        return C
+
+#
+# metametaclass extended_with 
+#
+
+def extended_with(C):
+    class extended_with(type):
+        def __new__(cls, name, bases, attrs):
+            attrs.update({ k: v for (k, v) in C.__dict__.items() if isinstance(v, collections.Callable) })
+            new_class = super(extended_with, cls).__new__(cls, name, bases, attrs)
+            return new_class
+    return extended_with
 
 #
 # class HTTPException
