@@ -7,15 +7,15 @@ static_dirs = []
 import os
 from setuptools import setup
 
-try:
-    with open('xhttp.egg-info/version.txt', 'r') as f:
-        version = f.read()
-except:
-    version = None
+def read_file(filename):
+    try:
+        with open(filename, 'r') as f: return f.read()
+    except:
+        pass
 
 setup(
     name='xhttp',
-    version=version,
+    version=read_file('xhttp.egg-info/version.txt'),
     version_command=('git describe', 'pep440-git-dev'),
     py_modules=['xhttp'],
     author='Joost Molenaar',
