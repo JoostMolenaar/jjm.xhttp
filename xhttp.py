@@ -56,6 +56,146 @@ class decorator(object):
         return self.__class__(new_func)
 
 #
+# @xhttp_app
+#
+
+class xhttp_app(decorator):
+    def parse_request(self, env):
+        request = { name[5:].lower().replace('_', '-'): value 
+                    for (name, value) in environment.items() 
+                    if name.startswith("HTTP_") }
+
+        request.update({ target: get(environment)
+                         for (target, get) in self.ENVIRONMENT.items() })
+
+        request.update({ name: parse(request[name])
+                         for (name, parse) in self.PARSERS.items()
+                         if name in request })
+
+        return request
+
+    def create_content(self, response):
+        content = response.pop("x-content", b"")
+        if callable(content):
+            content = content()
+        if isinstance(content, str):
+            raise Exception("Need to use @accept_encoding to send Unicode to client")
+        if isinstance(content, bytes):
+            response["content-length"] = len(content)
+            content = [content]
+        return content
+
+    def __call__(self, environment, start_response):
+        request = self.parse_request(env)
+
+        response = self.func(request)
+
+        response_code = response.pop("x-status")
+        response_code = "{0} {1}".format(response_code, status.responses[response_code])
+
+        content = self.create_content(response)
+
+        header_type = str if sys.version_info[0] == 3 else bytes
+        headers = [ (key.title(), header_type(response[key]))
+                    for key in sorted(response.keys()) ]
+
+        start_response(response_code, headers)
+        return content
+
+    PARSERS = {
+        "accept"            : QListHeader,
+        "accept-charset"    : QListHeader,
+        "accept-encoding"   : QListHeader,
+        "accept-language"   : QListHeader,
+        "if-modified-since" : DateHeader,
+        "range"             : RangeHeader
+    }
+
+    ENVIRONMENT = {
+        "content-length"   : lambda env: env.get("CONTENT_LENGTH", None),
+        "content-type"     : lambda env: env.get("CONTENT_TYPE", None),
+        "x-document-root"  : lambda env: env.get("DOCUMENT_ROOT", None),
+        "x-path-info"      : lambda env: env.get("PATH_INFO", None),
+        "x-query-string"   : lambda env: env.get("QUERY_STRING", None),
+        "x-remote-addr"    : lambda env: env.get("REMOTE_ADDR", None),
+        "x-remote-port"    : lambda env: env.get("REMOTE_PORT", None),
+        "x-request-uri"    : lambda env: env.get("REQUEST_URI", None),
+        "x-request-method" : lambda env: env.get("REQUEST_METHOD", None),
+        "x-server-name"    : lambda env: env.get("SERVER_NAME", None),
+        "x-server-port"    : lambda env: env.get("SERVER_PORT", None),
+        "x-server-protocol": lambda env: env.get("SERVER_PROTOCOL", None),
+        "x-wsgi-input"     : lambda env: env.get("wsgi.input", None)
+        #x-env"            : lambda env: env
+    }
+        
+#
+# class Resource
+#
+
+class Resource(object):
+    @property
+    def allowed(self):
+        methods = { m for m in self.METHODS if hasattr(self, m) }
+        if not "GET" in methods:
+            methods.discard("HEAD")
+        return " ".join(sorted(methods))
+
+    def HEAD(self, req, *a, **k):
+        if hasattr(self, "GET"):
+            res = self.GET(req, *a, **k)
+            res.pop("x-content", None)
+            return res
+        else:
+            raise HTTPMethodNotAllowed(self.allowed, detail="GET")
+
+    def OPTIONS(self, req, *a, **k):
+        raise HTTPException(status.OK, { "allowed": self.allowed, "x-detail": self.allowed })
+
+    def __call__(self, req, *a, **k):
+        if not req["x-request-method"] in Resource.METHODS:
+            raise HTTPBadRequest(detail=req["x-request-method"])
+        if hasattr(self, req["x-request-method"]):
+            return getattr(self, req["x-request-method"])(req, *a, **k)
+        raise HTTPMethodNotAllowed(self.allowed, detail=req["x-request-method"])
+
+    # XXX not very pluggable ------- i could just stick it into request?
+    METHODS = "HEAD GET PUT POST DELETE OPTIONS".split()
+
+
+#
+# class Router
+#
+
+class Router(object):
+    def __init__(self, *dispatch):
+        self.dispatch = [ (re.compile(pattern), handler) 
+                          for (pattern, handler) in dispatch ]
+
+    def find(self, path):
+        for (pattern, handler) in self.dispatch:
+            match = pattern.match(path)
+            if match:
+                return (handler, tuple(unquote(arg) for arg in match.groups()))
+        return (None, None)
+
+
+    def __call__(self, request, *a, **k):
+        path = request["x-path-info"]
+        handler, args = self.find(path)
+        if handler:
+            return handler(request, *(a + args))
+        elif not path.endswith("/"):
+            handler, args = self.find(path + "/")
+            if handler:
+                if request["x-request-method"] in ["GET", "HEAD"]:
+                    location = path + "/"
+                    location += ("?" + request["x-query-string"]) if request["x-query-string"] else ""
+                    raise HTTPSeeOther(location)
+                else:
+                    return handler(request, *(a + args))
+        raise HTTPNotFound(detail=request["x-request-uri"])
+
+#
 # QListHeader
 # 
 
@@ -195,146 +335,6 @@ class RangeHeader(object):
         except:
             stop = None
         return unit, start, stop
-
-#
-# @xhttp_app
-#
-
-class xhttp_app(decorator):
-    def parse_request(self, env):
-        request = { name[5:].lower().replace('_', '-'): value 
-                    for (name, value) in environment.items() 
-                    if name.startswith("HTTP_") }
-
-        request.update({ target: get(environment)
-                         for (target, get) in self.ENVIRONMENT.items() })
-
-        request.update({ name: parse(request[name])
-                         for (name, parse) in self.PARSERS.items()
-                         if name in request })
-
-        return request
-
-    def create_content(self, response):
-        content = response.pop("x-content", b"")
-        if callable(content):
-            content = content()
-        if isinstance(content, str):
-            raise Exception("Need to use @accept_encoding to send Unicode to client")
-        if isinstance(content, bytes):
-            response["content-length"] = len(content)
-            content = [content]
-        return content
-
-    def __call__(self, environment, start_response):
-        request = self.parse_request(env)
-
-        response = self.func(request)
-
-        response_code = response.pop("x-status")
-        response_code = "{0} {1}".format(response_code, status.responses[response_code])
-
-        content = self.create_content(response)
-
-        header_type = str if sys.version_info[0] == 3 else bytes
-        headers = [ (key.title(), header_type(response[key]))
-                    for key in sorted(response.keys()) ]
-
-        start_response(response_code, headers)
-        return content
-
-    PARSERS = {
-        "accept"            : QListHeader,
-        "accept-charset"    : QListHeader,
-        "accept-encoding"   : QListHeader,
-        "accept-language"   : QListHeader,
-        "if-modified-since" : DateHeader,
-        "range"             : RangeHeader
-    }
-
-    ENVIRONMENT = {
-        "content-length"   : lambda env: env.get("CONTENT_LENGTH", None),
-        "content-type"     : lambda env: env.get("CONTENT_TYPE", None),
-        "x-document-root"  : lambda env: env.get("DOCUMENT_ROOT", None),
-        "x-path-info"      : lambda env: env.get("PATH_INFO", None),
-        "x-query-string"   : lambda env: env.get("QUERY_STRING", None),
-        "x-remote-addr"    : lambda env: env.get("REMOTE_ADDR", None),
-        "x-remote-port"    : lambda env: env.get("REMOTE_PORT", None),
-        "x-request-uri"    : lambda env: env.get("REQUEST_URI", None),
-        "x-request-method" : lambda env: env.get("REQUEST_METHOD", None),
-        "x-server-name"    : lambda env: env.get("SERVER_NAME", None),
-        "x-server-port"    : lambda env: env.get("SERVER_PORT", None),
-        "x-server-protocol": lambda env: env.get("SERVER_PROTOCOL", None),
-        "x-wsgi-input"     : lambda env: env.get("wsgi.input", None)
-        #x-env"            : lambda env: env
-    }
-        
-#
-# class Resource
-#
-
-class Resource(object):
-    @property
-    def allowed(self):
-        methods = { m for m in self.METHODS if hasattr(self, m) }
-        if not "GET" in methods:
-            methods.discard("HEAD")
-        return " ".join(sorted(methods))
-
-    def HEAD(self, req, *a, **k):
-        if hasattr(self, "GET"):
-            res = self.GET(req, *a, **k)
-            res.pop("x-content", None)
-            return res
-        else:
-            raise HTTPMethodNotAllowed(self.allowed, detail="GET")
-
-    def OPTIONS(self, req, *a, **k):
-        raise HTTPException(status.OK, { "allowed": self.allowed, "x-detail": self.allowed })
-
-    def __call__(self, req, *a, **k):
-        if not req["x-request-method"] in Resource.METHODS:
-            raise HTTPBadRequest(detail=req["x-request-method"])
-        if hasattr(self, req["x-request-method"]):
-            return getattr(self, req["x-request-method"])(req, *a, **k)
-        raise HTTPMethodNotAllowed(self.allowed, detail=req["x-request-method"])
-
-    # XXX not very pluggable ------- i could just stick it into request?
-    METHODS = "HEAD GET PUT POST DELETE OPTIONS".split()
-
-
-#
-# class Router
-#
-
-class Router(object):
-    def __init__(self, *dispatch):
-        self.dispatch = [ (re.compile(pattern), handler) 
-                          for (pattern, handler) in dispatch ]
-
-    def find(self, path):
-        for (pattern, handler) in self.dispatch:
-            match = pattern.match(path)
-            if match:
-                return (handler, tuple(unquote(arg) for arg in match.groups()))
-        return (None, None)
-
-
-    def __call__(self, request, *a, **k):
-        path = request["x-path-info"]
-        handler, args = self.find(path)
-        if handler:
-            return handler(request, *(a + args))
-        elif not path.endswith("/"):
-            handler, args = self.find(path + "/")
-            if handler:
-                if request["x-request-method"] in ["GET", "HEAD"]:
-                    location = path + "/"
-                    location += ("?" + request["x-query-string"]) if request["x-query-string"] else ""
-                    raise HTTPSeeOther(location)
-                else:
-                    return handler(request, *(a + args))
-        raise HTTPNotFound(detail=request["x-request-uri"])
 
 #
 # @accept
