@@ -196,6 +196,37 @@ class Router(object):
         raise HTTPNotFound(detail=request["x-request-uri"])
 
 #
+# FileServer
+#
+
+class FileServer(Resource):
+    def __init__(self, path, content_type, last_modified=True, etag=False):
+        self.path = path
+        self.content_type = content_type
+        self.last_modified = last_modified
+        self.etag = etag
+  
+    @if_modified_since
+    @if_none_match
+    @ranged
+    def GET(self, req, filename):
+        fullname = os.path.join(self.path, filename)
+        if not os.path.abspath(fullname).startswith(os.path.abspath(self.path) + os.sep):
+            raise HTTPForbidden()
+        return serve_file(fullname, self.content_type, self.last_modified, self.etag)
+
+#
+# Redirector
+#
+
+class Redirector(Resource):
+    def __init__(self, location):
+        self.location = location
+
+    def GET(self, req):
+        raise HTTPSeeOther(self.location)
+
+#
 # QListHeader
 # 
 
@@ -668,37 +699,6 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
     if etag:
         result["etag"] = hashlib.sha256(content).hexdigest()
     return result
-
-#
-# FileServer
-#
-
-class FileServer(Resource):
-    def __init__(self, path, content_type, last_modified=True, etag=False):
-        self.path = path
-        self.content_type = content_type
-        self.last_modified = last_modified
-        self.etag = etag
-  
-    @if_modified_since
-    @if_none_match
-    @ranged
-    def GET(self, req, filename):
-        fullname = os.path.join(self.path, filename)
-        if not os.path.abspath(fullname).startswith(os.path.abspath(self.path) + os.sep):
-            raise HTTPForbidden()
-        return serve_file(fullname, self.content_type, self.last_modified, self.etag)
-
-#
-# Redirector
-#
-
-class Redirector(Resource):
-    def __init__(self, location):
-        self.location = location
-
-    def GET(self, req):
-        raise HTTPSeeOther(self.location)
 
 #
 # class WSGIAdapter
