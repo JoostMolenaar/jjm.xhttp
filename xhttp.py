@@ -167,9 +167,11 @@ class Resource(object):
 #
 
 class Router(object):
-    def __init__(self, *dispatch):
+    def __init__(self, *dispatch, prefix="/"):
         self.dispatch = [ (re.compile(pattern), handler) 
                           for (pattern, handler) in dispatch ]
+        self.prefix = prefix
+        self.prefix_re = re.compile('^' + prefix + '/*')
 
     def find(self, path):
         for (pattern, handler) in self.dispatch:
@@ -180,7 +182,7 @@ class Router(object):
 
 
     def __call__(self, request, *a, **k):
-        path = request["x-path-info"]
+        path = self.prefix_re.sub('/', request["x-path-info"])
         handler, args = self.find(path)
         if handler:
             return handler(request, *(a + args))
