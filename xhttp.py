@@ -167,10 +167,10 @@ class Resource(object):
 #
 
 class Router(object):
-    def __init__(self, *dispatch, prefix="/"):
+    def __init__(self, *dispatch, **kwargs):
         self.dispatch = [ (re.compile(pattern), handler) 
                           for (pattern, handler) in dispatch ]
-        self.prefix = prefix
+        self.prefix = kwargs.get('prefix', '/')
         self.prefix_re = re.compile('^' + prefix + '/*')
 
     def find(self, path):
