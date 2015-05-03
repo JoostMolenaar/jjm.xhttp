@@ -744,7 +744,11 @@ class TestGet(unittest.TestCase):
             app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" }) 
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
-        self.assertEqual(ex.exception.headers, { "x-detail": "GET parameter 'list1' has bad value 'ALBATROSS'" })
+        self.assertEqual(ex.exception.headers, { 
+            "x-detail": "GET parameter 'list1' has bad value u'ALBATROSS'"
+                        if sys.version_info[0] == 2 else
+                        "GET parameter 'list1' has bad value 'ALBATROSS'"
+        })
 
     def test_utf8(self):
         @xhttp.get({ "message": "^.+$" })
@@ -769,7 +773,11 @@ class TestGet(unittest.TestCase):
             app({ "x-query-string": "small=foo" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
-        self.assertEqual(ex.exception.headers, { "x-detail": "GET parameter 'small' has bad value 'foo'" })
+        self.assertEqual(ex.exception.headers, { 
+            "x-detail": "GET parameter 'small' has bad value u'foo'"
+                        if sys.version_info[0] == 2 else
+                        "GET parameter 'small' has bad value 'foo'"
+        })
 #
 # TestPost
 #
@@ -1097,8 +1105,8 @@ class TestFileServer(unittest.TestCase):
 class TestAcceptEncoding(unittest.TestCase):
     def test_gzip_encode_decode(self):
         text = b"Hello, world!\n"
-        compressed = xhttp._gzip_encode(text)
-        decompressed = xhttp._gzip_decode(compressed)
+        compressed = xhttp.utils.gzip_encode(text)
+        decompressed = xhttp.utils.gzip_decode(compressed)
         self.assertNotEqual(compressed, "")
         self.assertEqual(decompressed, text)
 
@@ -1127,7 +1135,7 @@ class TestAcceptEncoding(unittest.TestCase):
                 "x-content": b"Hello, world!\n",
                 "content-type": "text/plain"
             }
-        content = xhttp._gzip_encode(b"Hello, world!\n")
+        content = xhttp.utils.gzip_encode(b"Hello, world!\n")
         res = app({ "accept-encoding": xhttp.QListHeader("gzip,deflate,sdch") })
         self.assertEqual(res, {
             "x-status": 200,
