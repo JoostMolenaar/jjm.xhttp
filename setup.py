@@ -17,7 +17,7 @@ setup(
     name='xhttp',
     version=read_file('xhttp.egg-info/version.txt'),
     version_command=('git describe', 'pep440-git-dev'),
-    py_modules=['xhttp'],
+    packages=['xhttp'],
     author='Joost Molenaar',
     author_email='j.j.molenaar@gmail.com',
     url='https://github.com/j0057/xhttp',
