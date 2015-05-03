@@ -102,14 +102,16 @@ class xhttp_app(decorator):
         start_response(response_code, headers)
         return content
 
-    PARSERS = {
-        "accept"            : QListHeader,
-        "accept-charset"    : QListHeader,
-        "accept-encoding"   : QListHeader,
-        "accept-language"   : QListHeader,
-        "if-modified-since" : DateHeader,
-        "range"             : RangeHeader
-    }
+    @property
+    def PARSERS(self):
+        return {
+            "accept"            : QListHeader,
+            "accept-charset"    : QListHeader,
+            "accept-encoding"   : QListHeader,
+            "accept-language"   : QListHeader,
+            "if-modified-since" : DateHeader,
+            "range"             : RangeHeader
+        }
 
     ENVIRONMENT = {
         "content-length"   : lambda env: env.get("CONTENT_LENGTH", None),
