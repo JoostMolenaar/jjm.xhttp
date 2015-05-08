@@ -1,24 +1,42 @@
-#!/usr/bin/env python
+from __future__ import division, absolute_import, print_function
+#rom __future__ import unicode_literals
 
+import collections
 import datetime
 import gzip
 import hashlib
-import httplib
 import itertools
 import json
 import os
 import os.path
 import re
-import StringIO
+import sys
 import traceback
-import urllib
 
-import httplib as status
+if sys.version_info[0] == 3:
+    import io
+    import http.client as status
+
+    from urllib.parse import unquote, unquote_plus
+
+if sys.version_info[0] == 2:
+    import StringIO as io
+    import httplib as status
+
+    from urllib import unquote, unquote_plus
+
+    io.BytesIO = io.StringIO
+
+    bytes, str = str, unicode
 
 import dateutil
 import dateutil.parser
 
 import xmlist
+
+__author__ = 'Joost Molenaar <j.j.molenaar@gmail.com>'
+__version__ = '0.1'
+
 
 # XXX: for negotiating accept-charset, everything should be unicode objects. or else assume us-ascii
 # XXX: be more flexible about x-content having to be iterable? if it's str/basestring/unicode, put it inside a list?
@@ -32,7 +50,6 @@ class decorator(object):
         self.func = func
 
     def __get__(self, obj, cls=None):
-        # XXX: don't know how to hit this branch in a sane way
         if cls is None:
             return self
         new_func = self.func.__get__(obj, cls)
@@ -43,20 +60,25 @@ class decorator(object):
 # 
 
 class QListHeader(object):
+    _comma = re.compile(r"\s*,\s*")
+    _semicolon = re.compile(r"\s*;\s*")
+
     def __init__(self, s):
         try: 
-            items = re.split(r"\s*,\s*", s)
-            items = [ re.split(r"\s*;\s*", item) for item in items ]
+            #tems = re.split(r"\s*,\s*", s)
+            #tems = [ re.split(r"\s*;\s*", item) for item in items ]
+            items = self._comma.split(s)
+            items = [ self._semicolon.split(item) for item in items ]
             items = [ t if len(t) == 2 else (t + ["q=1.0"]) for t in items ]
             items = [ (m, q.split('=')[1]) for (m, q) in items ] 
             items = [ (float(q), i, m) for (i, (m, q)) in enumerate(items) ]
-            self.items = sorted(items, key=lambda (q, i, v): (1-q, i, v))
+            self.items = sorted(items, key=lambda qiv: (1-qiv[0], qiv[1], qiv[2]))
         except:
             self.items = []
 
     def __str__(self):
         return ",".join((v + (";q={0}".format(q) if q != 1.0 else ""))
-                        for (q, i, v) in sorted(self.items, key=lambda (q, i, v): i))
+                        for (q, i, v) in sorted(self.items, key=lambda qiv: qiv[1]))
 
     def __repr__(self):
         return "{0}({1})".format(type(self).__name__, repr(str(self)))
@@ -69,6 +91,7 @@ class QListHeader(object):
 
     def negotiate_language(self, tags):
         pass
+        # TODO: implement this
 
     def negotiate_mime(self, keys):
         for (_, _, v) in self.items:
@@ -97,6 +120,8 @@ class DateHeader(object):
 
     def __init__(self, x, tz=TZ_UTC):
         self.tz = tz 
+        if isinstance(x, bytes):
+            x = x.decode('us-ascii')
         if isinstance(x, str):
             self.timestamp = self.parse(x)
         elif isinstance(x, int):
@@ -120,8 +145,23 @@ class DateHeader(object):
     def __repr__(self):
         return "{0}({1})".format(type(self).__name__, repr(str(self)))
 
-    def __cmp__(self, other):
-        return cmp(self.timestamp, other.timestamp)
+    def __eq__(self, other):
+        return not self < other and not other < self
+
+    def __ne__(self, other):
+        return self < other or other < self
+
+    def __gt__(self, other):
+        return other < self
+
+    def __ge__(self, other):
+        return not self < other
+
+    def __le__(self, other):
+        return not other < self
+
+    def __lt__(self, other):
+        return self.timestamp < other.timestamp
 
     def parse(self, s):
         dt = dateutil.parser.parse(s).astimezone(DateHeader.TZ_UTC)
@@ -133,16 +173,18 @@ class DateHeader(object):
 #
 
 class RangeHeader(object):
+    __slots__ = ["unit", "start", "stop"]
+
     def __init__(self, s):
         self.unit, self.start, self.stop = self.parse(s)
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3})".format(type(self).__name__, self.unit, self.start, self.stop)
+        return "{0}({1!r}, {2!r}, {3!r})".format(type(self).__name__, self.unit, self.start, self.stop)
 
     def parse(self, s):
         unit, ranges = s.split("=", 1)
         if len(ranges.split(",")) > 1:
-            raise HTTPException(httplib.NOT_IMPLEMENTED, { "x-detail": "Multiple ranges not implemented" })
+            raise HTTPNotImplemented(detail="Multiple ranges are not implemented")
         start, stop = ranges.split("-", 1)
         try:
             start = int(start)
@@ -173,18 +215,22 @@ class xhttp_app(decorator):
 
         response = self.func(request)
 
-        status = response.pop("x-status")
-        status = str(status) + " " + httplib.responses[status]
+        response_code = response.pop("x-status")
+        response_code = "{0} {1}".format(response_code, status.responses[response_code])
 
-        content = response.pop("x-content", "")
+        content = response.pop("x-content", b"")
         if isinstance(content, str):
+            raise Exception("Need to use @accept_encoding to send Unicode to client")
+        elif isinstance(content, bytes):
             response["content-length"] = len(content)
             content = [content]
 
-        headers = [ (key.title(), str(response[key]))
-                    for key in sorted(response.keys()) ]
+        if sys.version_info[0] == 3:
+            headers = [ (key.title(), str(response[key])) for key in sorted(response.keys()) ]
+        else:
+            headers = [ (key.title(), bytes(response[key])) for key in sorted(response.keys()) ]
 
-        start_response(status, headers)
+        start_response(response_code, headers)
         return content
 
     PARSERS = {
@@ -240,7 +286,7 @@ class as_wsgi_app(type):
 def extended_with(C):
     class extended_with(type):
         def __new__(cls, name, bases, attrs):
-            attrs.update({ k: v for (k, v) in C.__dict__.items() if callable(v) })
+            attrs.update({ k: v for (k, v) in C.__dict__.items() if isinstance(v, collections.Callable) })
             new_class = super(extended_with, cls).__new__(cls, name, bases, attrs)
             return new_class
     return extended_with
@@ -250,23 +296,23 @@ def extended_with(C):
 #
 
 class HTTPException(Exception):
-    EMPTY = [ httplib.NOT_MODIFIED ]
+    EMPTY = [ status.NOT_MODIFIED ]
 
-    def __init__(self, status, headers={}):
-        self.status = status
+    def __init__(self, response_code, headers={}):
+        self.status = response_code
         self.headers = headers
-        super(HTTPException, self).__init__(httplib.responses[status])
+        super(HTTPException, self).__init__(status.responses[response_code])
 
     def response(self):
+        detail = self.headers.pop("x-detail") if "x-detail" in self.headers else None
         if self.status in HTTPException.EMPTY:
             res = { "x-status": self.status }
             res.update(self.headers)
             return res
         else:
-            message = self.message
-            if "x-detail" in self.headers:
-                message += ": "
-                message += self.headers.pop("x-detail")
+            message = self.args[0]
+            if detail:
+                message += ": " + detail 
             message += "\n"
             result = {
                 "x-status": self.status,
@@ -275,31 +321,88 @@ class HTTPException(Exception):
             }
             result.update(self.headers)
             return result
-        
+
+class HTTPMovedPermanently(HTTPException):
+    def __init__(self, location, detail=None):
+        super(HTTPMovedPermanently, self).__init__(status.MOVED_PERMANENTLY,
+            { "x-detail": detail, "location": location })
+
+class HTTPFound(HTTPException):
+    def __init__(self, location, detail=None):
+        super(HTTPFound, self).__init__(status.FOUND, 
+            { "x-detail": detail or location, "location": location })
+
+class HTTPSeeOther(HTTPException):
+    def __init__(self, location, detail=None):
+        super(HTTPSeeOther, self).__init__(status.SEE_OTHER, 
+            { "x-detail": detail or location, "location": location })
+
+class HTTPNotModified(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPNotModified, self).__init__(status.NOT_MODIFIED, { "x-detail": detail })
+
+class HTTPBadRequest(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPBadRequest, self).__init__(status.BAD_REQUEST, { "x-detail": detail })
+
+class HTTPUnauthorized(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPUnauthorized, self).__init__(status.UNAUTHORIZED, { "x-detail": detail })
+
+class HTTPForbidden(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPForbidden, self).__init__(status.FORBIDDEN, { "x-detail": detail })
+
+class HTTPNotFound(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPNotFound, self).__init__(status.NOT_FOUND, { "x-detail": detail })
+
+class HTTPMethodNotAllowed(HTTPException):
+    def __init__(self, allowed, detail=None):
+        super(HTTPMethodNotAllowed, self).__init__(status.METHOD_NOT_ALLOWED, 
+            { "x-detail": detail or allowed, "allowed": allowed})
+    
+class HTTPNotAcceptable(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPNotAcceptable, self).__init__(status.NOT_ACCEPTABLE, { "x-detail": detail })
+
+class HTTPInternalServerError(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPInternalServerError, self).__init__(status.INTERNAL_SERVER_ERROR, 
+            { "x-detail": detail })        
+
+class HTTPNotImplemented(HTTPException):
+    def __init__(self, detail=None):
+        super(HTTPNotImplemented, self).__init__(status.NOT_IMPLEMENTED, { "x-detail": detail })
 #
 # class Resource
 #
 
 class Resource(object):
+    @property
+    def allowed(self):
+        methods = { m for m in self.METHODS if hasattr(self, m) }
+        if not "GET" in methods:
+            methods.discard("HEAD")
+        return " ".join(sorted(methods))
+
     def HEAD(self, req, *a, **k):
         if hasattr(self, "GET"):
             res = self.GET(req, *a, **k)
             res.pop("x-content", None)
             return res
         else:
-            raise HTTPException(httplib.METHOD_NOT_ALLOWED, { "x-detail": "GET" })
+            raise HTTPMethodNotAllowed(self.allowed, detail="GET")
 
     def OPTIONS(self, req, *a, **k):
-        allowed = " ".join(sorted(m for m in self.METHODS if hasattr(self, m)))
-        raise HTTPException(httplib.OK, { "allowed": allowed, "x-detail": allowed })
+        raise HTTPException(status.OK, { "allowed": self.allowed, "x-detail": self.allowed })
 
     def __call__(self, req, *a, **k):
         if not req["x-request-method"] in Resource.METHODS:
-            raise HTTPException(httplib.BAD_REQUEST, { "x-detail": req["x-request-method"] })
+            raise HTTPBadRequest(detail=req["x-request-method"])
         if hasattr(self, req["x-request-method"]):
             return getattr(self, req["x-request-method"])(req, *a, **k)
-        else:
-            raise HTTPException(httplib.METHOD_NOT_ALLOWED, { "x-detail": req["x-request-method"] })
+        raise HTTPMethodNotAllowed(self.allowed, detail=req["x-request-method"])
 
     # XXX not very pluggable ------- i could just stick it into request?
     METHODS = "HEAD GET PUT POST DELETE OPTIONS".split()
@@ -318,7 +421,7 @@ class Router(object):
         for (pattern, handler) in self.dispatch:
             match = pattern.match(path)
             if match:
-                return (handler, tuple(urllib.unquote(arg) for arg in match.groups()))
+                return (handler, tuple(unquote(arg) for arg in match.groups()))
         return (None, None)
 
 
@@ -333,10 +436,10 @@ class Router(object):
                 if request["x-request-method"] in ["GET", "HEAD"]:
                     location = path + "/"
                     location += ("?" + request["x-query-string"]) if request["x-query-string"] else ""
-                    raise HTTPException(httplib.SEE_OTHER, { "location": location, "x-detail": location })
+                    raise HTTPSeeOther(location)
                 else:
                     return handler(request, *(a + args))
-        raise HTTPException(httplib.NOT_FOUND, { "x-detail": request["x-request-uri"] })
+        raise HTTPNotFound(detail=request["x-request-uri"])
 
 #
 # @accept
@@ -358,7 +461,7 @@ def custom_accept(serializers):
                     res["x-content"] = serialize_obj(res["x-content"])
                 return res
             else:
-                raise HTTPException(httplib.NOT_ACCEPTABLE)
+                raise HTTPNotAcceptable()
     return accept 
 
 accept = custom_accept({ 
@@ -380,9 +483,10 @@ class catcher(decorator):
             except Exception as e:
                 if isinstance(e, HTTPException):
                     raise
-                traceback.print_exc(e)
-                detail = "{0} ({1})".format(type(e).__name__, e.message)
-                raise HTTPException(httplib.INTERNAL_SERVER_ERROR, { "x-detail": detail })
+                print("")
+                traceback.print_exc()
+                detail = "{0} ({1})".format(type(e).__name__, e.args[0])
+                raise HTTPInternalServerError(detail=detail)
         except HTTPException as e:
             return e.response()
 
@@ -391,12 +495,13 @@ class catcher(decorator):
 #
 
 def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
-    for (key, pattern) in variables.items():
+    for (key, pattern) in list(variables.items()):
         cardinality = "1"
         if key[-1] in ["?", "+", "*"]:
             del variables[key]
             key, cardinality = key[:-1], key[-1]
-        variables[key] = (cardinality, pattern)
+        #variables[key] = (cardinality, pattern)
+        variables[key] = (cardinality, re.compile(pattern))
 
     def parse(s):
         items = [ item.split("=", 2) for item in s.split(sep) ] if s else []
@@ -408,23 +513,27 @@ def _parse_x_www_form_urlencoded(parsertype, variables, sep="&"):
 
         for (key, (cardinality, _)) in variables.items():
             if cardinality == "1" and len(result[key]) != 1:
-                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} should occur exactly once".format(parsertype, key) })
+                raise HTTPBadRequest(detail="{0} parameter {1!r} should occur exactly once".format(parsertype, key))
             elif cardinality == "?" and len(result[key]) > 1:
-                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} should occur at most once".format(parsertype, key) })
+                raise HTTPBadRequest(detail="{0} parameter {1!r} should occur at most once".format(parsertype, key))
             elif cardinality == "+" and len(result[key]) < 1:
-                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} should occur at least once".format(parsertype, key) })
+                raise HTTPBadRequest(detail="{0} parameter {1!r} should occur at least once".format(parsertype, key))
 
         for (key, (_, pattern)) in variables.items():
             for value in result[key]:
-                if not re.match(pattern, value):
-                    raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "{0} parameter {1!r} has bad value {2!r}".format(parsertype, key, value) })
+                if not pattern.match(value):
+                #if not re.match(pattern, value):
+                    raise HTTPBadRequest(detail="{0} parameter {1!r} has bad value {2!r}".format(parsertype, key, value))
 
         for (key, values) in result.items():
             if key not in variables:
-                raise HTTPException(httplib.BAD_REQUEST, { "x-detail": "Unknown {0} parameter {1!r}".format(parsertype, key) })
+                raise HTTPBadRequest(detail="Unknown {0} parameter {1!r}".format(parsertype, key))
 
         for (key, values) in result.items():
-            result[key] = [ urllib.unquote_plus(value).decode("utf8", errors="replace") for value in values ]
+            if sys.version_info[0] == 3:
+                result[key] = [ unquote_plus(value) for value in values ]
+            elif sys.version_info[0] == 2:
+                result[key] = [ unquote_plus(value).decode("utf8", errors="replace") for value in values ]
 
         for (key, (cardinality, _)) in variables.items():
             if cardinality in ["1", "?"]:
@@ -492,9 +601,9 @@ class if_modified_since(decorator):
             return res
         if req["if-modified-since"] < res["last-modified"]:
             return res
-        if res["x-status"] != httplib.OK:
+        if res["x-status"] != status.OK:
             return res
-        raise HTTPException(httplib.NOT_MODIFIED)
+        raise HTTPNotModified()
 
 #
 # @if_none_match
@@ -509,23 +618,23 @@ class if_none_match(decorator):
             return res
         if req["if-none-match"] != res["etag"]:
             return res
-        if res["x-status"] != httplib.OK:
+        if res["x-status"] != status.OK:
             return res
-        raise HTTPException(httplib.NOT_MODIFIED)
+        raise HTTPNotModified()
 
 #
 # @accept_encoding
 # 
 
 def _gzip_encode(s):
-    z = StringIO.StringIO()
+    z = io.BytesIO() 
     with gzip.GzipFile(fileobj=z, mode="wb") as f:
         f.write(s)
     z.seek(0)
-    return z.buf
+    return z.read()
 
 def _gzip_decode(z):
-    return gzip.GzipFile(fileobj=StringIO.StringIO(z), mode="rb").read()
+    return gzip.GzipFile(fileobj=io.BytesIO(z), mode="rb").read()
 
 class accept_encoding(decorator):
     def __call__(self, req, *a, **k):
@@ -550,14 +659,14 @@ class accept_charset(decorator):
         res = self.func(req, *a, **k)
         if "x-content" not in res:
             return res
-        if isinstance(res["x-content"], unicode):
+        if isinstance(res["x-content"], str):
             charsets = req.get("accept-charset", None) or QListHeader("UTF-8")
-            charset = charsets.negotiate(["UTF-8", "UTF-16", "US-ASCII"])
+            charset = charsets.negotiate(["UTF-8", "UTF-16", "UTF-32", "US-ASCII"])
             if charset:
                 res["x-content"] = res["x-content"].encode(charset)
                 res["content-type"] += "; charset={0}".format(charset)
             else:
-                raise HTTPException(httplib.NOT_ACCEPTABLE, { "x-detail": "No supported charset requested" })
+                raise HTTPNotAcceptable(detail="No supported charset requested")
         return res
 
 #
@@ -572,12 +681,14 @@ class ranged(decorator):
             return res
         if "x-content" not in res:
             return res
-        length = len(res["x-content"])
+        content = res["x-content"]
+        length = len(content)
         start = req["range"].start
         stop = req["range"].stop if req["range"].stop is not None else (length - 1)
+        content = content[start:stop+1]
         res.update({
-            "x-status": httplib.PARTIAL_CONTENT,
-            "x-content": res["x-content"][start:stop+1],
+            "x-status": status.PARTIAL_CONTENT,
+            "x-content": content,
             "content-range": "bytes {0}-{1}/{2}".format(start, stop, length)
         })
         return res
@@ -643,9 +754,9 @@ def serve_file(filename, content_type, last_modified=True, etag=False):
         with open(filename, "rb") as f:
             content = f.read()
     except IOError as e:
-        raise HTTPException(httplib.NOT_FOUND, { "x-detail": e.strerror })
+        raise HTTPNotFound(detail=e.strerror)
     result = {
-        "x-status": httplib.OK,
+        "x-status": status.OK,
         "x-content": content,
         "content-type": content_type,
         "content-length": len(content)
@@ -666,11 +777,14 @@ class FileServer(Resource):
         self.content_type = content_type
         self.last_modified = last_modified
         self.etag = etag
-        
+  
+    @if_modified_since
+    @if_none_match
+    @ranged
     def GET(self, req, filename):
         fullname = os.path.join(self.path, filename)
         if not os.path.abspath(fullname).startswith(os.path.abspath(self.path) + os.sep):
-            raise HTTPException(httplib.FORBIDDEN)
+            raise HTTPForbidden()
         return serve_file(fullname, self.content_type, self.last_modified, self.etag)
 
 #
@@ -682,7 +796,7 @@ class Redirector(Resource):
         self.location = location
 
     def GET(self, req):
-        raise HTTPException(httplib.SEE_OTHER, { "location": self.location })
+        raise HTTPSeeOther(self.location)
 
 #
 # run_server
@@ -705,7 +819,7 @@ def run_server(app, ip='', port=8000):
         return fixed_app
 
     app = fix_wsgiref(app)
-    print 'Serving on {0}:{1}'.format(ip, port)
+    print('Serving on {0}:{1}'.format(ip, port))
     import wsgiref.simple_server
     wsgiref.simple_server.make_server(ip, port, app).serve_forever()
 

@@ -1,13 +1,22 @@
 
-include Makefile.inc
+PY_VERSION ?= python2.7
+PY_OPTS ?= -B 
 
-ENV ?= env
-ENV_VERSION ?= python2.7
-SITE_PACKAGES = $(ENV)/lib/$(ENV_VERSION)/site-packages
+TAG = $(subst .,,$(subst python,,$(PY_VERSION)))
+
+ENV = env$(TAG)
+
+COVERAGE_FILE       = .coverage$(TAG)
+COVERAGE_OUTPUT_DIR = htmlcov$(TAG)
+
+export COVERAGE_FILE
+export COVERAGE_OUTPUT_DIR
 
 TARGET = /srv/$(NAME)
 TARGET_USER ?= www-data
 TARGET_GROUP ?= www-data
+
+SITE_PACKAGES = $(ENV)/lib/$(PY_VERSION)/site-packages
 
 ifeq ($(shell id -n -u),root)
     SUDO =
@@ -17,7 +26,7 @@ endif
 
 QUIET ?= --quiet
 
-PIP_CACHE = .cache
+PIP_CACHE = .cache$(TAG)
 
 PKG_BASE ?= $(shell readlink -f ..)
 
@@ -28,10 +37,10 @@ PKG_BASE ?= $(shell readlink -f ..)
 #
 
 test: runtime-test
-	cd $(ENV) ; bin/python -m $(MAIN)
+	cd $(ENV) ; bin/python $(PY_OPTS) -m $(MAIN)
 
 run: runtime-live
-	cd $(ENV) ; bin/python -m $(MAIN)
+	cd $(ENV) ; bin/python $(PY_OPTS) -m $(MAIN)
 
 #
 # deploy
@@ -53,8 +62,7 @@ runtime-live: $(ENV) $(ENV)/.$(PIP_REQ) unlink-pkgs unlink-code unlink-data depl
 runtime-test: $(ENV) $(ENV)/.$(PIP_REQ) undeploy-pkgs undeploy-code undeploy-data link-pkgs link-code link-data
 
 $(ENV): 
-	virtualenv --python=$(ENV_VERSION) $(ENV) $(QUIET)
-	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) 'distribute>=0.6.30' $(QUIET)
+	virtualenv --python=$(PY_VERSION) $(ENV) $(QUIET)
 
 $(ENV)/.$(PIP_REQ): $(PIP_REQ)
 	$(ENV)/bin/pip install --upgrade --download-cache $(PIP_CACHE) --requirement $(PIP_REQ) $(QUIET)
@@ -67,7 +75,8 @@ $(ENV)/.$(PIP_REQ): $(PIP_REQ)
 deploy-pkgs: $(addprefix $(ENV)/.pkg-,$(PKG))
 
 $(ENV)/.pkg-%:
-	$(ENV)/bin/pip install --upgrade file://$(PKG_BASE)/$* $(QUIET)
+	cd $(PKG_BASE)/$* ; ./setup.py sdist $(QUIET)
+	$(ENV)/bin/pip install --upgrade $(PKG_BASE)/$*/dist/$*-$(shell $(PKG_BASE)/$*/setup.py --version).tar.gz
 	@touch $@
 
 undeploy-pkgs: $(addprefix undeploy-pkg-,$(PKG))
@@ -79,7 +88,12 @@ undeploy-pkg-%:
 link-pkgs: $(addprefix $(ENV)/.pkglink-,$(PKG))
 
 $(ENV)/.pkglink-%:
+	@IS_PACKAGE=${shell test -d $(PKG_BASE)/$*/$* && echo 1 || echo 0}
+ifeq ($(IS_PACKAGE),1)
 	ln -snf $(PKG_BASE)/$*/$* $(SITE_PACKAGES)/$*
+else
+	ln -snf $(PKG_BASE)/$*/$*.py $(SITE_PACKAGES)/$*.py
+endif
 	@touch $@
 
 unlink-pkgs: $(addprefix unlink-pkg-,$(PKG))
@@ -134,21 +148,31 @@ unlink-dir-%:
 
 clean:
 	rm -rf $(ENV)
+	rm -rf tests/$(COVERAGE_OUTPUT_DIR)
+	rm -f tests/$(COVERAGE_FILE)
+	rm -f MANIFEST
+	rm -rf dist
 
 really-clean: clean
 	rm -rf $(PIP_CACHE)
 
+#
 # unit testing
+#
 
 unit-test: runtime-test
-	cd tests ; ../$(ENV)/bin/python -m unittest discover
+	cd tests ; ../$(ENV)/bin/python $(PY_OPTS) -m unittest discover -v
 
 coverage: runtime-test
-	rm -rf tests/htmlcov
-	rm -f tests/.coverage
-	cd tests ; ../$(ENV)/bin/coverage run --branch -m unittest discover || true
-	cd tests ; ../$(ENV)/bin/coverage html
+	rm -rf tests/$(COVERAGE_OUTPUT_DIR)
+	rm -f tests/$(COVERAGE_FILE)
+	cd tests ; ../$(ENV)/bin/python $(PY_OPTS) ../$(ENV)/bin/coverage run --branch -m unittest discover -v || true
+	cd tests ; ../$(ENV)/bin/python $(PY_OPTS) ../$(ENV)/bin/coverage html
 
-continuous:
-	inotifywait -r . -q -m -e CLOSE_WRITE | grep --line-buffered '^.*\.py$$' | while read line; do clear; date; echo $$line; echo; make coverage; done
+continuous-%:
+	inotifywait -r . -q -m -e CLOSE_WRITE | grep --line-buffered '^.*\.py$$' | while read line; do clear; date; echo $$line; echo; make $*; done
 
+continuous: continuous-coverage
+
+profile:
+	cd tests ; ../$(ENV)/bin/python $(PY_OPTS) profile.py

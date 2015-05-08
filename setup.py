@@ -4,7 +4,8 @@ setup(
     author='Joost Molenaar',
     author_email='j.j.molenaar@gmail.com',
     name='xhttp',
-    packages=['xhttp'],
+    #packages=['xhttp'],
+    py_modules=['xhttp'],
     url='https://github.com/j0057/xhttp',
     version='0.1.0'
 )

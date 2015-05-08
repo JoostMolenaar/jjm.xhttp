@@ -1,6 +1,13 @@
 *.pyc
-env
-.cache
-.coverage
-htmlcov
+__pycache__
+env*
+.coverage2*
+.coverage3*
+htmlcov2*
+htmlcov3*
+.cache2*
+.cache3*
 *.swp
+dist
+MANIFEST
+
