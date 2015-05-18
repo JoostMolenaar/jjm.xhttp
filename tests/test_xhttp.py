@@ -42,7 +42,7 @@ class TestDecorator(unittest.TestCase):
             def spam(cls, x):
                 return 4 * x
         self.assertEqual(Albatross.spam(23), 184)
-        
+
     def test_staticmethod(self):
         class Albatross(object):
             @TestDecorator.dec
@@ -50,7 +50,7 @@ class TestDecorator(unittest.TestCase):
             def spam(x):
                 return 5 * x
         self.assertEqual(Albatross.spam(23), 230)
-        
+
     def test_func_path(self):
         class C(object):
             @TestDecorator.dec
@@ -1016,7 +1016,7 @@ class TestIfNoneMatch(unittest.TestCase):
 
 class TestServeFile(unittest.TestCase):
     def test_existing_file(self):
-        result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=False)
+        result = xhttp.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=False, etag=False)
         self.assertEqual(result, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
@@ -1025,17 +1025,17 @@ class TestServeFile(unittest.TestCase):
         })
 
     def test_last_modified(self):
-        result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=True, etag=False)
+        result = xhttp.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=True, etag=False)
         self.assertEqual(result, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
             "content-type": "text/plain",
             "content-length": 14,
-            "last-modified": xhttp.DateHeader(os.path.getmtime("data/hello-world.txt"))
+            "last-modified": xhttp.DateHeader(os.path.getmtime("tests/data/hello-world.txt"))
         })
 
     def test_etag(self):
-        result = xhttp.serve_file("data/hello-world.txt", "text/plain", last_modified=False, etag=True)
+        result = xhttp.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=False, etag=True)
         self.assertEqual(result, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
@@ -1046,7 +1046,7 @@ class TestServeFile(unittest.TestCase):
 
     def test_not_found(self):
         with self.assertRaises(xhttp.HTTPException) as ex:
-            xhttp.serve_file("data/albatross.txt", "text/plain")
+            xhttp.serve_file("tests/data/albatross.txt", "text/plain")
         self.assertEqual(ex.exception.status, 404)
         self.assertEqual(ex.exception.args[0], "Not Found")
         self.assertEqual(ex.exception.headers, { "x-detail": "No such file or directory" })
@@ -1069,7 +1069,7 @@ class TestServeFile(unittest.TestCase):
             setattr(__builtins__, "open", MockOpen)
         try:
             with self.assertRaises(Exception) as ex:
-                xhttp.serve_file("data/albatross.txt", "text/plain")
+                xhttp.serve_file("tests/data/albatross.txt", "text/plain")
         finally:
             if isinstance(__builtins__, dict):
                 __builtins__["open"] = orig_open
@@ -1082,7 +1082,7 @@ class TestServeFile(unittest.TestCase):
 
 class TestFileServer(unittest.TestCase):
     def test_found(self):
-        app = xhttp.FileServer("data", "text/plain", last_modified=False, etag=False)
+        app = xhttp.FileServer("tests/data", "text/plain", last_modified=False, etag=False)
         response = app({ "x-request-method": "GET" }, "hello-world.txt")
         self.assertEqual(response, {
             "x-status": 200,
@@ -1093,7 +1093,7 @@ class TestFileServer(unittest.TestCase):
         })
 
     def test_bad_filename(self):
-        app = xhttp.FileServer("data", "text/plain", last_modified=False, etag=False)
+        app = xhttp.FileServer("tests/data", "text/plain", last_modified=False, etag=False)
         with self.assertRaises(xhttp.HTTPException) as ex: 
             app({ "x-request-method": "GET" }, "../testxhttp.py")
         self.assertEqual(ex.exception.status, 403)

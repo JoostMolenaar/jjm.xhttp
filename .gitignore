@@ -1,10 +1,7 @@
 *.pyc
-env27
-MANIFEST
-MANIFEST.in
-Makefile.in
-requirements.txt
-*.egg-info
-.coverage27
-htmlcov27
 env
+htmlcov
+*.egg-info
+.coverage
+MANIFEST.in
+requirements.txt
