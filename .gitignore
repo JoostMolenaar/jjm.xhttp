@@ -1,7 +1,6 @@
 *.pyc
-env
+env*
 htmlcov
 *.egg-info
 .coverage
-MANIFEST.in
-requirements.txt
+.cache

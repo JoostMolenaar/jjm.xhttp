@@ -1,12 +1,11 @@
 #!/usr/bin/env python2.7
 
-repo_names = ['xmlist']
-dist_names = ['python-dateutil']
-static_dirs = ['tests']
-
 import os
 import setuptools
 import setuptools.command.test
+
+os.environ['HTTP_PROXY']  = '127.0.0.1:65534'
+os.environ['HTTPS_PROXY'] = '127.0.0.1:65535'
 
 class PyTest(setuptools.command.test.test):
     def initialize_options(self):
@@ -19,7 +18,7 @@ class PyTest(setuptools.command.test.test):
 
     def run_tests(self):
         import pytest
-        pytest.main('tests --cov-report html --cov-report term --cov xhttp --cov-config .coveragerc'.split())
+        pytest.main(['-c', 'setup.cfg'])
 
 def try_read_file(filename):
     try:
@@ -38,19 +37,11 @@ setuptools.setup(**{
 
     'packages': ['xhttp'],
 
-    'data_files': [ (root, [ root + '/' + fn for fn in files ])
-                    for src_dir in static_dirs
-                    for (root, dirs, files) in os.walk(src_dir) ],
-
-    'install_requires': ['xmlist', 'python-dateutil'],
-    'tests_require': ['pytest', 'pytest-cov'],
+    'tests_require': ['pytest', 'pytest-cov', 'pytest-flakes'],
     'setup_requires': ['setuptools-version-command', 'setuptools-metadata'],
+    'install_requires': ['xmlist', 'python-dateutil'],
 
     'cmdclass':  {
         'test': PyTest
-    },
-
-    'custom_metadata': {
-        'x_static_dirs': static_dirs
     }
 })
