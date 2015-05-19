@@ -8,6 +8,8 @@ if sys.version_info[0] == 2:
 elif sys.version_info[0] == 3:
     import http.client as status
 
+__all__ = ['if_modified_since', 'if_none_match', 'ranged']
+
 #
 # @if_modified_since
 #

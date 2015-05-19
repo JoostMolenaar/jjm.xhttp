@@ -6,9 +6,9 @@ from . import exc
 from .utils import decorator
 
 if sys.version_info[0] == 2:
-    from urllib import unquote, unquote_plus
+    from urllib import unquote_plus
 elif sys.version_info[0] == 3:
-    from urllib.parse import unquote, unquote_plus
+    from urllib.parse import unquote_plus
 
 __all__ = [ 'get', 'post', 'cookie' ]
 

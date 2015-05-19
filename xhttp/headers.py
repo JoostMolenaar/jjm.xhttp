@@ -10,7 +10,7 @@ import dateutil.parser
 from . import exc
 
 if sys.version_info[0] == 2:
-    bytes, str = str, unicode
+    bytes, str = str, unicode # pragma: no flakes
 
 __all__ = [ 'QListHeader', 'DateHeader', 'RangeHeader' ]
 

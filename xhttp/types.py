@@ -4,12 +4,12 @@ import sys
 
 from . import exc
 from . import utils
-import conditional
+from . import conditional
 
 if sys.version_info[0] == 2:
-    from urllib import unquote, unquote_plus
+    from urllib import unquote
 elif sys.version_info[0] == 3:
-    from urllib.parse import unquote, unquote_plus
+    from urllib.parse import unquote
 
 if sys.version_info[0] == 2:
     import httplib as status

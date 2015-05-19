@@ -6,7 +6,7 @@ elif sys.version_info[0] == 3:
     import http.client as status
 
 if sys.version_info[0] == 2:
-    bytes, str = str, unicode
+    bytes, str = str, unicode # pragma: no flakes
 
 __all__ = [
     'HTTPException',

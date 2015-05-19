@@ -7,8 +7,10 @@ import sys
 
 if sys.version_info[0] == 3:
     import io
+    assert io
 if sys.version_info[0] == 2:
     import StringIO as io
+    assert io
 
 import xhttp
 
@@ -17,7 +19,7 @@ import xhttp
 #
 
 class TestDecorator(unittest.TestCase):
-    class dec(xhttp.decorator):
+    class dec(xhttp.utils.decorator):
         def __call__(self, *a, **k):
             return 2 * self.func(*a, **k)
 
@@ -67,7 +69,7 @@ class TestDecorator(unittest.TestCase):
 
 class TestQlist(unittest.TestCase):
     def test_parse(self):
-        qlist = xhttp.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        qlist = xhttp.headers.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         self.assertIsNotNone(qlist)
         self.assertEqual(
             [ v for (_, _, v) in qlist.items ], 
@@ -75,38 +77,38 @@ class TestQlist(unittest.TestCase):
 
     def test_roundtrip(self):
         s1 = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        qlist = xhttp.QListHeader(s1)
+        qlist = xhttp.headers.QListHeader(s1)
         s2 = str(qlist)
         self.assertEqual(s2, s1)
 
     def test_negotiate_exact_match(self):
-        qlist = xhttp.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        qlist = xhttp.headers.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         result = qlist.negotiate_mime(["application/xml", "image/png"])
         self.assertEqual(result, "application/xml")
 
     def test_negotiate_any_match(self):
-        qlist = xhttp.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85,*/*;q=0.8")
+        qlist = xhttp.headers.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85,*/*;q=0.8")
         result = qlist.negotiate_mime(["foo/bar"])
         self.assertEqual(result, "foo/bar")
 
     def test_negotiate_partial_match(self):
-        qlist = xhttp.QListHeader("application/xhtml+xml,application/xml;q=0.9,text/*;q=0.95,*/*;q=0.8")
+        qlist = xhttp.headers.QListHeader("application/xhtml+xml,application/xml;q=0.9,text/*;q=0.95,*/*;q=0.8")
         result = qlist.negotiate_mime(["application/xml", "text/plain"])
         self.assertEqual(result, "text/plain")
 
     def test_negotiate_no_match(self):
-        qlist = xhttp.QListHeader("text/*;q=0.95,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85")
+        qlist = xhttp.headers.QListHeader("text/*;q=0.95,application/xhtml+xml,application/xml;q=0.9,text/*;q=0.85")
         result = qlist.negotiate_mime(["image/png", "audio/mpeg"])
         self.assertEqual(result, None)
 
     def test_negotiate_bad_header(self):
-        qlist = xhttp.QListHeader("text/plain;q=albatross")
+        qlist = xhttp.headers.QListHeader("text/plain;q=albatross")
         result = qlist.negotiate_mime(["image/png", "audio/mpeg"])
         self.assertEqual(qlist.items, [])
         self.assertEqual(result, None)
 
     def test_repr(self):
-        qlist = xhttp.QListHeader("text/plain;q=0.9, application/xhtml+xml")
+        qlist = xhttp.headers.QListHeader("text/plain;q=0.9, application/xhtml+xml")
         result = repr(qlist)
         if sys.version_info[0] == 3:
             self.assertEqual(result, "QListHeader('text/plain;q=0.9,application/xhtml+xml')")
@@ -114,12 +116,12 @@ class TestQlist(unittest.TestCase):
             self.assertEqual(result, "QListHeader(u'text/plain;q=0.9,application/xhtml+xml')")
 
     def test_negotiiate_other(self):
-        qlist = xhttp.QListHeader("gzip,deflate,sdch")
+        qlist = xhttp.headers.QListHeader("gzip,deflate,sdch")
         result = qlist.negotiate(["gzip"])
         self.assertEqual(result, "gzip")
 
     def test_negotiate_other_returning_none(self):
-        qlist = xhttp.QListHeader("deflate,sdch")
+        qlist = xhttp.headers.QListHeader("deflate,sdch")
         result = qlist.negotiate(["gzip"])
         self.assertEqual(result, None)
 
@@ -129,36 +131,36 @@ class TestQlist(unittest.TestCase):
 
 class TestDateHeader(unittest.TestCase):
     def test_epoch(self):
-        date = xhttp.DateHeader("Thu, 01 Jan 1970 00:00:00 GMT")
+        date = xhttp.headers.DateHeader("Thu, 01 Jan 1970 00:00:00 GMT")
         self.assertEqual(date.timestamp, 0)
         self.assertEqual(str(date), "Thu, 01 Jan 1970 00:00:00 GMT")
 
     def test_my_birthday_gmt(self):
-        date = xhttp.DateHeader("Tue, 08 Jun 1982 23:11:00 GMT")
+        date = xhttp.headers.DateHeader("Tue, 08 Jun 1982 23:11:00 GMT")
         self.assertEqual(date.timestamp, 392425860)
         self.assertEqual(str(date), "Tue, 08 Jun 1982 23:11:00 GMT")
 
     def test_my_birthday_in_my_timezone(self):
-        date = xhttp.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
+        date = xhttp.headers.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
         self.assertEqual(date.timestamp, 392425860)
         self.assertEqual(str(date), "Tue, 08 Jun 1982 23:11:00 GMT")
 
     def test_epoch_to_str(self):
-        date = xhttp.DateHeader(0)
+        date = xhttp.headers.DateHeader(0)
         self.assertEqual(str(date), "Thu, 01 Jan 1970 00:00:00 GMT")
 
     def test_my_birthday_in_gmt_to_str(self):
-        date = xhttp.DateHeader(392425860)
+        date = xhttp.headers.DateHeader(392425860)
         self.assertEqual(str(date), "Tue, 08 Jun 1982 23:11:00 GMT")
 
     def test_wrong_input(self):
         with self.assertRaises(ValueError) as ex:
-            xhttp.DateHeader(None)
+            xhttp.headers.DateHeader(None)
         self.assertEqual(type(ex.exception), ValueError)
         self.assertEqual(ex.exception.args[0], "Unsupported type NoneType")
 
     def test_repr(self):
-        date = xhttp.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
+        date = xhttp.headers.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
         result = repr(date)
         if sys.version_info[0] == 3:
             self.assertEqual(result, "DateHeader('Tue, 08 Jun 1982 23:11:00 GMT')")
@@ -166,9 +168,9 @@ class TestDateHeader(unittest.TestCase):
             self.assertEqual(result, "DateHeader(u'Tue, 08 Jun 1982 23:11:00 GMT')")
 
     def test_cmp(self):
-        date1 = xhttp.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
-        date1b = xhttp.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
-        date2 = xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+        date1 = xhttp.headers.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
+        date1b = xhttp.headers.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
+        date2 = xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
         self.assertTrue(date1 == date1b)
         self.assertTrue(date1 < date2)
         self.assertTrue(date2 > date1)
@@ -184,30 +186,30 @@ class TestDateHeader(unittest.TestCase):
 
 class TestRangeHeader(unittest.TestCase):
     def test_range_1(self):
-        r = xhttp.RangeHeader("bytes=0-13")
+        r = xhttp.headers.RangeHeader("bytes=0-13")
         self.assertEqual(r.unit, "bytes")
         self.assertEqual(r.start, 0)
         self.assertEqual(r.stop, 13)
 
     def test_annoying_range(self):
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            xhttp.RangeHeader("bytes=0-13,17-19")
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            xhttp.headers.RangeHeader("bytes=0-13,17-19")
         self.assertEqual(ex.exception.status, 501) 
 
     def test_no_start(self):
-        r = xhttp.RangeHeader("bytes=-13")
+        r = xhttp.headers.RangeHeader("bytes=-13")
         self.assertEqual(r.unit, "bytes")
         self.assertEqual(r.start, None)
         self.assertEqual(r.stop, 13)
         
     def test_no_stop(self):
-        r = xhttp.RangeHeader("bytes=0-")
+        r = xhttp.headers.RangeHeader("bytes=0-")
         self.assertEqual(r.unit, "bytes")
         self.assertEqual(r.start, 0)
         self.assertEqual(r.stop, None)
 
     def test_repr(self):
-        r = xhttp.RangeHeader("bytes=11-13")
+        r = xhttp.headers.RangeHeader("bytes=11-13")
         self.assertEqual(repr(r), "RangeHeader('bytes', 11, 13)")
 
 #
@@ -216,7 +218,7 @@ class TestRangeHeader(unittest.TestCase):
 
 class TestHTTPException(unittest.TestCase):
     def test_without_detail(self):
-        ex = xhttp.HTTPException(xhttp.status.BAD_REQUEST)
+        ex = xhttp.exc.HTTPException(xhttp.status.BAD_REQUEST)
         self.assertEqual(str(ex), "Bad Request")
         self.assertEqual(ex.response(), {
             "x-status": 400,
@@ -225,7 +227,7 @@ class TestHTTPException(unittest.TestCase):
         })
 
     def test_with_detail(self):
-        ex = xhttp.HTTPException(xhttp.status.BAD_REQUEST, { "x-detail": "Just because" })
+        ex = xhttp.exc.HTTPException(xhttp.status.BAD_REQUEST, { "x-detail": "Just because" })
         self.assertEqual(str(ex), "Bad Request")
         self.assertEqual(ex.response(), {
             "x-status": 400,
@@ -283,7 +285,7 @@ class TestXhttpAppDecorator(unittest.TestCase):
                 ("Content-Type", "text/plain")
             ])
         environ = gen_environ("GET", "/", {})
-        with self.assertRaises(Exception) as ex:
+        with self.assertRaises(Exception):
             app(environ, start_response)
 
     def test_iterator(self):
@@ -318,7 +320,7 @@ class TestXhttpAppDecorator(unittest.TestCase):
                 ("Content-Type", "text/plain") ])
         environ = gen_environ("GET", "/", {})
         result = app(environ, start_response)
-        self.assertEqual(result, ["Hello, world!\n"])
+        self.assertEqual(result, [b"Hello, world!\n"])
             
 
 #
@@ -350,8 +352,9 @@ class TestResource(unittest.TestCase):
 
     def test_options(self):
         app = HelloWorld()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({ "x-request-method": "OPTIONS" })
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({ "x-request-method": "OPTIONS" })
+            assert not ex
         self.assertEqual(ex.exception.response(), {
             "x-status": 200,
             "x-content": "OK: GET HEAD OPTIONS PUT\n",
@@ -369,8 +372,9 @@ class TestResource(unittest.TestCase):
 
     def test_head_with_no_get(self):
         app = xhttp.Resource()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({ "x-request-method": "HEAD" })
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({ "x-request-method": "HEAD" })
+            assert not ex
         self.assertEqual(ex.exception.response(), {
             "x-status": 405,
             "x-content": "Method Not Allowed: GET\n",
@@ -380,14 +384,15 @@ class TestResource(unittest.TestCase):
         
     def test_unknown_method(self):
         app = HelloWorld()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({
                 "x-request-method": "FOO",
                 "x-request-uri": "/",
                 "x-path-info": "/",
                 "x-query-string": "",
                 "x-document-root": os.getcwd()
             })
+            assert not ex
         self.assertEqual(ex.exception.response(), {
             "x-status": 400,
             "x-content": "Bad Request: FOO\n",
@@ -396,8 +401,9 @@ class TestResource(unittest.TestCase):
 
     def test_method_not_allowed(self):
         app = HelloWorld()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({ "x-request-method": "POST" })
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({ "x-request-method": "POST" })
+            assert not ex
         self.assertEqual(ex.exception.response(), {
             "x-status": 405,
             "x-content": "Method Not Allowed: POST\n",
@@ -418,8 +424,8 @@ class HelloWorldRouter(xhttp.Router):
 class TestRouter(unittest.TestCase):
     def test_not_found(self):
         app = HelloWorldRouter()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({
                 "x-request-method": "GET",
                 "x-request-uri": "/foo",
                 "x-path-info": "/foo",
@@ -434,8 +440,8 @@ class TestRouter(unittest.TestCase):
 
     def test_not_found_2(self):
         app = HelloWorldRouter()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({
                 "x-request-method": "GET",
                 "x-request-uri": "/foo/",
                 "x-path-info": "/foo/",
@@ -465,14 +471,15 @@ class TestRouter(unittest.TestCase):
 
     def test_redirect_get(self):
         app = HelloWorldRouter()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({
                 "x-request-method": "GET",
                 "x-request-uri": "/hello",
                 "x-path-info": "/hello",
                 "x-query-string": "",
                 "x-document-root": os.getcwd()
             })
+            assert ex
         self.assertEqual(ex.exception.response(), {
             "x-status": 303,
             "x-content": "See Other: /hello/\n",
@@ -532,11 +539,12 @@ class HelloContentNegotiatingWorld(xhttp.Resource):
 class TestAccept(unittest.TestCase):
     def test_not_acceptable(self):
         app = HelloContentNegotiatingWorld()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({
                 "x-request-method": "GET",
-                "accept": xhttp.QListHeader("image/png")
+                "accept": xhttp.headers.QListHeader("image/png")
             })
+            assert ex
         self.assertEqual(ex.exception.response(), {
             "x-status": 406,
             "x-content": "Not Acceptable\n",
@@ -545,12 +553,13 @@ class TestAccept(unittest.TestCase):
 
     def test_unacceptable_charset(self):
         app = HelloContentNegotiatingWorld()
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            response = app({
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            app({
                 "x-request-method" : "GET",
-                "accept"           : xhttp.QListHeader("text/plain"),
-                "accept-charset"   : xhttp.QListHeader("ISO-8859-15")
+                "accept"           : xhttp.headers.QListHeader("text/plain"),
+                "accept-charset"   : xhttp.headers.QListHeader("ISO-8859-15")
             })
+            assert ex
         self.assertEqual(ex.exception.response(), {
             "x-status"     : 406,
             "x-content"    : "Not Acceptable: No supported charset requested\n",
@@ -575,8 +584,8 @@ class TestAccept(unittest.TestCase):
         app = HelloContentNegotiatingWorld()
         response = app({
             "x-request-method": "GET",
-            "accept": xhttp.QListHeader("text/plain"),
-            "accept-charset": xhttp.QListHeader("UTF-8,UTF-16")
+            "accept": xhttp.headers.QListHeader("text/plain"),
+            "accept-charset": xhttp.headers.QListHeader("UTF-8,UTF-16")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -588,8 +597,8 @@ class TestAccept(unittest.TestCase):
         app = HelloContentNegotiatingWorld()
         response = app({
             "x-request-method": "GET",
-            "accept": xhttp.QListHeader("text/html"),
-            "accept-charset": xhttp.QListHeader("UTF-8,UTF-16")
+            "accept": xhttp.headers.QListHeader("text/html"),
+            "accept-charset": xhttp.headers.QListHeader("UTF-8,UTF-16")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -601,8 +610,8 @@ class TestAccept(unittest.TestCase):
         app = HelloContentNegotiatingWorld()
         response = app({
             "x-request-method": "GET",
-            "accept": xhttp.QListHeader("application/json"),
-            "accept-charset": xhttp.QListHeader("UTF-8,UTF-16")
+            "accept": xhttp.headers.QListHeader("application/json"),
+            "accept-charset": xhttp.headers.QListHeader("UTF-8,UTF-16")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -614,8 +623,8 @@ class TestAccept(unittest.TestCase):
         app = HelloContentNegotiatingWorld()
         response = app({
             "x-request-method": "GET",
-            "accept": xhttp.QListHeader("application/xhtml+xml"),
-            "accept-charset": xhttp.QListHeader("UTF-8,UTF-16")
+            "accept": xhttp.headers.QListHeader("application/xhtml+xml"),
+            "accept-charset": xhttp.headers.QListHeader("UTF-8,UTF-16")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -627,8 +636,8 @@ class TestAccept(unittest.TestCase):
         app = HelloContentNegotiatingWorld()
         response = app({
             "x-request-method": "GET",
-            "accept": xhttp.QListHeader("application/xml"),
-            "accept-charset": xhttp.QListHeader("UTF-8,UTF-16")
+            "accept": xhttp.headers.QListHeader("application/xml"),
+            "accept-charset": xhttp.headers.QListHeader("UTF-8,UTF-16")
         })
         self.assertEqual(response, {
             "x-status": 200,
@@ -648,7 +657,7 @@ class ExceptionalResource(xhttp.Resource):
     @xhttp.catcher
     def PUT(self, req):
         location = "/somewhere-else"
-        raise xhttp.HTTPException(xhttp.status.SEE_OTHER, { "location": location, "x-detail": location })
+        raise xhttp.exc.HTTPException(xhttp.status.SEE_OTHER, { "location": location, "x-detail": location })
 
 class TestCatcher(unittest.TestCase):
     def test_exception(self):
@@ -696,7 +705,7 @@ class TestGet(unittest.TestCase):
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-query-string": "optional=albatross&list1=23&list1=46&list2=aa" }) 
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
@@ -708,7 +717,7 @@ class TestGet(unittest.TestCase):
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-query-string": "required=required&optional=albatross&optional=albatross&list1=23&list1=46&list2=aa" }) 
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
@@ -720,7 +729,7 @@ class TestGet(unittest.TestCase):
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-query-string": "required=spam&optional=albatross&list2=aa" }) 
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
@@ -728,7 +737,7 @@ class TestGet(unittest.TestCase):
 
     def test_forbidden_parameter(self):
         app = xhttp.get({ "foo": "^bar$" })(None)
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-query-string": "foo=bar&spam=albatross" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
@@ -740,7 +749,7 @@ class TestGet(unittest.TestCase):
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" }) 
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
@@ -769,7 +778,7 @@ class TestGet(unittest.TestCase):
         self.assertEqual(app({ "x-query-string": "" }), None)
         self.assertEqual(app({ "x-query-string": "small=true" }), "true")
         self.assertEqual(app({ "x-query-string": "small=false" }), "false")
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-query-string": "small=foo" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
@@ -796,7 +805,7 @@ class TestPost(unittest.TestCase):
     def test_post_with_bad_content_length(self):
         app = xhttp.post({ "spam": "^albatross$" })(None)
         content = "spam=albatross"
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({
                 "content-length": "evil!",
                 "x-wsgi-input": io.StringIO(content)
@@ -848,7 +857,7 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
+            "if-modified-since": xhttp.headers.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
         })
         self.assertEqual(res, {
             "x-status": 200,
@@ -865,7 +874,7 @@ class TestIfModifiedSince(unittest.TestCase):
                 "x-content": ["Hello, world!\n"],
                 "content-type": "text/plain",
                 "content-length": 13,
-                "last-modified": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+                "last-modified": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
             }
         res = app({
             "x-request-method": "GET",
@@ -873,14 +882,14 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
+            "if-modified-since": xhttp.headers.DateHeader("Wed, 09 Jun 1982 01:11:00 +0200")
         })
         self.assertEqual(res, {
             "x-status": 200,
             "x-content": ["Hello, world!\n"],
             "content-type": "text/plain",
             "content-length": 13,
-            "last-modified": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+            "last-modified": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
         })
 
     def test_not_modified(self):
@@ -891,16 +900,16 @@ class TestIfModifiedSince(unittest.TestCase):
                 "x-content": ["Hello, world!\n"],
                 "content-type": "text/plain",
                 "content-length": 13,
-                "last-modified": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+                "last-modified": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
             }
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({
                 "x-request-method": "GET",
                 "x-request-uri": "/",
                 "x-path-info": "/",
                 "x-query-string": "",
                 "x-document-root": os.getcwd(),
-                "if-modified-since": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+                "if-modified-since": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
             })
         self.assertEqual(ex.exception.status, 304)
         self.assertEqual(ex.exception.response(), { "x-status": 304 })
@@ -910,7 +919,7 @@ class TestIfModifiedSince(unittest.TestCase):
         def app(req):
             return {
                 "x-status": xhttp.status.NO_CONTENT,
-                "last-modified": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+                "last-modified": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
             }
         res = app({
             "x-request-method": "GET",
@@ -918,11 +927,11 @@ class TestIfModifiedSince(unittest.TestCase):
             "x-path-info": "/",
             "x-query-string": "",
             "x-document-root": os.getcwd(),
-            "if-modified-since": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+            "if-modified-since": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
         })
         self.assertEqual(res, {
             "x-status": 204,
-            "last-modified": xhttp.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
+            "last-modified": xhttp.headers.DateHeader("Mon, 23 Jul 2012 20:00:00 +0200")
         })
 
 #
@@ -1004,7 +1013,7 @@ class TestIfNoneMatch(unittest.TestCase):
                 "content-length": 14,
                 "etag": "A"
             }
-        with self.assertRaises(xhttp.HTTPException) as ex:
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "if-none-match": "A" })
         self.assertEqual(ex.exception.status, 304)
 
@@ -1016,7 +1025,7 @@ class TestIfNoneMatch(unittest.TestCase):
 
 class TestServeFile(unittest.TestCase):
     def test_existing_file(self):
-        result = xhttp.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=False, etag=False)
+        result = xhttp.utils.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=False, etag=False)
         self.assertEqual(result, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
@@ -1025,17 +1034,17 @@ class TestServeFile(unittest.TestCase):
         })
 
     def test_last_modified(self):
-        result = xhttp.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=True, etag=False)
+        result = xhttp.utils.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=True, etag=False)
         self.assertEqual(result, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
             "content-type": "text/plain",
             "content-length": 14,
-            "last-modified": xhttp.DateHeader(os.path.getmtime("tests/data/hello-world.txt"))
+            "last-modified": xhttp.headers.DateHeader(os.path.getmtime("tests/data/hello-world.txt"))
         })
 
     def test_etag(self):
-        result = xhttp.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=False, etag=True)
+        result = xhttp.utils.serve_file("tests/data/hello-world.txt", "text/plain", last_modified=False, etag=True)
         self.assertEqual(result, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
@@ -1045,8 +1054,8 @@ class TestServeFile(unittest.TestCase):
         })
 
     def test_not_found(self):
-        with self.assertRaises(xhttp.HTTPException) as ex:
-            xhttp.serve_file("tests/data/albatross.txt", "text/plain")
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
+            xhttp.utils.serve_file("tests/data/albatross.txt", "text/plain")
         self.assertEqual(ex.exception.status, 404)
         self.assertEqual(ex.exception.args[0], "Not Found")
         self.assertEqual(ex.exception.headers, { "x-detail": "No such file or directory" })
@@ -1068,8 +1077,8 @@ class TestServeFile(unittest.TestCase):
             orig_open = getattr(__builtins__, "open")
             setattr(__builtins__, "open", MockOpen)
         try:
-            with self.assertRaises(Exception) as ex:
-                xhttp.serve_file("tests/data/albatross.txt", "text/plain")
+            with self.assertRaises(Exception):
+                xhttp.utils.serve_file("tests/data/albatross.txt", "text/plain")
         finally:
             if isinstance(__builtins__, dict):
                 __builtins__["open"] = orig_open
@@ -1094,7 +1103,7 @@ class TestFileServer(unittest.TestCase):
 
     def test_bad_filename(self):
         app = xhttp.FileServer("tests/data", "text/plain", last_modified=False, etag=False)
-        with self.assertRaises(xhttp.HTTPException) as ex: 
+        with self.assertRaises(xhttp.exc.HTTPException) as ex: 
             app({ "x-request-method": "GET" }, "../testxhttp.py")
         self.assertEqual(ex.exception.status, 403)
 
@@ -1136,7 +1145,7 @@ class TestAcceptEncoding(unittest.TestCase):
                 "content-type": "text/plain"
             }
         content = xhttp.utils.gzip_encode(b"Hello, world!\n")
-        res = app({ "accept-encoding": xhttp.QListHeader("gzip,deflate,sdch") })
+        res = app({ "accept-encoding": xhttp.headers.QListHeader("gzip,deflate,sdch") })
         self.assertEqual(res, {
             "x-status": 200,
             "x-content": content,
@@ -1153,7 +1162,7 @@ class TestAcceptEncoding(unittest.TestCase):
                 "x-content": b"Hello, world!\n",
                 "content-type": "text/plain"
             }
-        res = app({ "accept-encoding": xhttp.QListHeader("some-unknown-method") })
+        res = app({ "accept-encoding": xhttp.headers.QListHeader("some-unknown-method") })
         self.assertEqual(res, {
             "x-status": 200,
             "x-content": b"Hello, world!\n",
@@ -1186,7 +1195,7 @@ class TestRanged(unittest.TestCase):
     def test_range(self):
         response = self.app({ 
             "x-request-method": "GET",
-            "range": xhttp.RangeHeader("bytes=0-4") })
+            "range": xhttp.headers.RangeHeader("bytes=0-4") })
         self.assertEqual(response, {
             "x-status": 206,
             "x-content": "Hello",
@@ -1198,7 +1207,7 @@ class TestRanged(unittest.TestCase):
     def test_no_content(self):
         response = self.app({ 
             "x-request-method": "POST",
-            "range": xhttp.RangeHeader("bytes=0-4") })
+            "range": xhttp.headers.RangeHeader("bytes=0-4") })
         self.assertEqual(response, {
             "x-status": 204,
             "accept-ranges": "bytes"
@@ -1252,7 +1261,7 @@ class TestCacheControl(unittest.TestCase):
 class TestRedirector(unittest.TestCase):
     def test_redirector(self):
         redirector = xhttp.Redirector('/test')
-        with self.assertRaises(xhttp.HTTPException) as e:
+        with self.assertRaises(xhttp.exc.HTTPException) as e:
             redirector.GET({})
         self.assertEqual(e.exception.status, 303)
         self.assertEqual(e.exception.headers, {

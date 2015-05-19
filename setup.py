@@ -38,7 +38,7 @@ setuptools.setup(**{
     'packages': ['xhttp'],
 
     'tests_require': ['pytest', 'pytest-cov', 'pytest-flakes'],
-    'setup_requires': ['setuptools-version-command', 'setuptools-metadata'],
+    'setup_requires': ['setuptools-version-command'],
     'install_requires': ['xmlist', 'python-dateutil'],
 
     'cmdclass':  {

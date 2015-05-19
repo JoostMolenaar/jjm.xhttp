@@ -4,11 +4,11 @@ import sys
 import xmlist
 
 from . import exc
-from .headers import *
+from .headers import QListHeader
 from .utils import decorator, gzip_encode
 
 if sys.version_info[0] == 2:
-    bytes, str = str, unicode
+    bytes, str = str, unicode # pragma: no flakes
 
 __all__ = [ 'custom_accept', 'accept', 'accept_encoding', 'accept_charset' ]
 
