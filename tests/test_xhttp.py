@@ -1267,12 +1267,6 @@ class TestRedirector(unittest.TestCase):
         self.assertEqual(e.exception.headers, {
             'location': '/test',
             'x-detail': '/test' })
-            
-
-class TestEverything(unittest.TestSuite):
-    def __init__(self):
-        super(TestEverything, self).__init__()
-        self.addTests(cls for cls in globals().values() if unittest.TestCase in cls.bases)
 
 if __name__ == '__main__':
     unittest.main()
