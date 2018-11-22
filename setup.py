@@ -4,9 +4,6 @@ import os
 import setuptools
 import setuptools.command.test
 
-os.environ['HTTP_PROXY']  = '127.0.0.1:65534'
-os.environ['HTTPS_PROXY'] = '127.0.0.1:65535'
-
 class PyTest(setuptools.command.test.test):
     def initialize_options(self):
         setuptools.command.test.test.initialize_options(self)
