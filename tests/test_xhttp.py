@@ -72,7 +72,7 @@ class TestQlist(unittest.TestCase):
         qlist = xhttp.headers.QListHeader("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         self.assertIsNotNone(qlist)
         self.assertEqual(
-            [ v for (_, _, v) in qlist.items ], 
+            [ v for (_, _, v) in qlist.items ],
             ["text/html", "application/xhtml+xml", "application/xml", "*/*"])
 
     def test_roundtrip(self):
@@ -194,14 +194,14 @@ class TestRangeHeader(unittest.TestCase):
     def test_annoying_range(self):
         with self.assertRaises(xhttp.exc.HTTPException) as ex:
             xhttp.headers.RangeHeader("bytes=0-13,17-19")
-        self.assertEqual(ex.exception.status, 501) 
+        self.assertEqual(ex.exception.status, 501)
 
     def test_no_start(self):
         r = xhttp.headers.RangeHeader("bytes=-13")
         self.assertEqual(r.unit, "bytes")
         self.assertEqual(r.start, None)
         self.assertEqual(r.stop, 13)
-        
+
     def test_no_stop(self):
         r = xhttp.headers.RangeHeader("bytes=0-")
         self.assertEqual(r.unit, "bytes")
@@ -321,7 +321,7 @@ class TestXhttpAppDecorator(unittest.TestCase):
         environ = gen_environ("GET", "/", {})
         result = app(environ, start_response)
         self.assertEqual(result, [b"Hello, world!\n"])
-            
+
 
 #
 # TestResource
@@ -381,7 +381,7 @@ class TestResource(unittest.TestCase):
             "content-type": "text/plain",
             "allowed": "OPTIONS"
         })
-        
+
     def test_unknown_method(self):
         app = HelloWorld()
         with self.assertRaises(xhttp.exc.HTTPException) as ex:
@@ -508,15 +508,15 @@ class HelloContentNegotiatingWorld(xhttp.Resource):
     @xhttp.accept_charset
     @xhttp.accept
     def GET(self, req):
-        greeting = { 
-            "message": u'Hell\u00f8, world! ">_<"' 
+        greeting = {
+            "message": u'Hell\u00f8, world! ">_<"'
         }
         greeting_view = {
             "text/plain"            : lambda m: m["message"] + "\n",
             "text/html"             : lambda m: ["p", m["message"]],
             "application/json"      : lambda m: m,
             "application/xhtml+xml" : lambda m: ["p", ("xmlns", "http://www.w3.org/1999/xhtml"), m["message"]],
-            "application/xml"       : lambda m: ["message", m["message"]] 
+            "application/xml"       : lambda m: ["message", m["message"]]
         }
         return {
             "x-status"       : 200,
@@ -574,7 +574,7 @@ class TestAccept(unittest.TestCase):
     def test_bytes(self):
         app = HelloContentNegotiatingWorld()
         response = app({ "x-request-method": "POST" })
-        self.assertEqual(response, { 
+        self.assertEqual(response, {
             "x-status": 201,
             "x-content": b"Created\n",
             "content-type": "text/plain"
@@ -667,7 +667,7 @@ class TestCatcher(unittest.TestCase):
             "x-status": 500,
             "x-content": "Internal Server Error: Exception (foo)\n",
             "content-type": "text/plain"
-        }) 
+        })
 
     def test_http_exception(self):
         app = ExceptionalResource()
@@ -685,7 +685,7 @@ class TestCatcher(unittest.TestCase):
 
 class TestGet(unittest.TestCase):
     def test_present(self):
-        @xhttp.get({ 
+        @xhttp.get({
             "required": "^spam$",
              "optional?": "^albatross$",
              "list1+": "^\d+$",
@@ -697,40 +697,40 @@ class TestGet(unittest.TestCase):
                 "list1": ["23", "46"],
                 "list2": ["aa"]
             })
-        app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=46&list2=aa" }) 
+        app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=46&list2=aa" })
 
     def test_missing_single(self):
-        app = xhttp.get({ 
+        app = xhttp.get({
             "required": "^spam$",
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.exc.HTTPException) as ex:
-            app({ "x-query-string": "optional=albatross&list1=23&list1=46&list2=aa" }) 
+            app({ "x-query-string": "optional=albatross&list1=23&list1=46&list2=aa" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
         self.assertEqual(ex.exception.headers, { "x-detail": "GET parameter 'required' should occur exactly once" })
 
     def test_multiple_optional(self):
-        app = xhttp.get({ 
+        app = xhttp.get({
             "required": "^spam$",
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.exc.HTTPException) as ex:
-            app({ "x-query-string": "required=required&optional=albatross&optional=albatross&list1=23&list1=46&list2=aa" }) 
+            app({ "x-query-string": "required=required&optional=albatross&optional=albatross&list1=23&list1=46&list2=aa" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
         self.assertEqual(ex.exception.headers, { "x-detail": "GET parameter 'optional' should occur at most once" })
 
     def test_missing_multiple(self):
-        app = xhttp.get({ 
+        app = xhttp.get({
             "required": "^spam$",
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.exc.HTTPException) as ex:
-            app({ "x-query-string": "required=spam&optional=albatross&list2=aa" }) 
+            app({ "x-query-string": "required=spam&optional=albatross&list2=aa" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
         self.assertEqual(ex.exception.headers, { "x-detail": "GET parameter 'list1' should occur at least once" })
@@ -744,16 +744,16 @@ class TestGet(unittest.TestCase):
         self.assertEqual(ex.exception.headers, { "x-detail": "Unknown GET parameter 'spam'" })
 
     def test_wrong_value(self):
-        app = xhttp.get({ 
+        app = xhttp.get({
             "required": "^spam$",
             "optional?": "^albatross$",
             "list1+": "^\d+$",
             "list2*": "^[a-z]+$" })(None)
         with self.assertRaises(xhttp.exc.HTTPException) as ex:
-            app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" }) 
+            app({ "x-query-string": "required=spam&optional=albatross&list1=23&list1=ALBATROSS&list2=aa" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
-        self.assertEqual(ex.exception.headers, { 
+        self.assertEqual(ex.exception.headers, {
             "x-detail": "GET parameter 'list1' has bad value u'ALBATROSS'"
                         if sys.version_info[0] == 2 else
                         "GET parameter 'list1' has bad value 'ALBATROSS'"
@@ -782,7 +782,7 @@ class TestGet(unittest.TestCase):
             app({ "x-query-string": "small=foo" })
         self.assertEqual(ex.exception.status, 400)
         self.assertEqual(ex.exception.args[0], "Bad Request")
-        self.assertEqual(ex.exception.headers, { 
+        self.assertEqual(ex.exception.headers, {
             "x-detail": "GET parameter 'small' has bad value u'foo'"
                         if sys.version_info[0] == 2 else
                         "GET parameter 'small' has bad value 'foo'"
@@ -1103,7 +1103,7 @@ class TestFileServer(unittest.TestCase):
 
     def test_bad_filename(self):
         app = xhttp.FileServer("tests/data", "text/plain", last_modified=False, etag=False)
-        with self.assertRaises(xhttp.exc.HTTPException) as ex: 
+        with self.assertRaises(xhttp.exc.HTTPException) as ex:
             app({ "x-request-method": "GET" }, "../testxhttp.py")
         self.assertEqual(ex.exception.status, 403)
 
@@ -1168,7 +1168,7 @@ class TestAcceptEncoding(unittest.TestCase):
             "x-content": b"Hello, world!\n",
             "content-type": "text/plain"
         })
-        
+
 
 class TestRanged(unittest.TestCase):
     @xhttp.ranged
@@ -1193,7 +1193,7 @@ class TestRanged(unittest.TestCase):
         })
 
     def test_range(self):
-        response = self.app({ 
+        response = self.app({
             "x-request-method": "GET",
             "range": xhttp.headers.RangeHeader("bytes=0-4") })
         self.assertEqual(response, {
@@ -1205,14 +1205,14 @@ class TestRanged(unittest.TestCase):
         })
 
     def test_no_content(self):
-        response = self.app({ 
+        response = self.app({
             "x-request-method": "POST",
             "range": xhttp.headers.RangeHeader("bytes=0-4") })
         self.assertEqual(response, {
             "x-status": 204,
             "accept-ranges": "bytes"
         })
-        
+
 
 class TestAppCached(unittest.TestCase):
     @xhttp.app_cached(1)

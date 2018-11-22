@@ -33,7 +33,7 @@ def custom_accept(serializers):
                 return res
             else:
                 raise exc.HTTPNotAcceptable()
-    return accept 
+    return accept
 
 accept = custom_accept({ 
     "application/xml"       : lambda content: xmlist.serialize(content),
@@ -44,7 +44,7 @@ accept = custom_accept({
 
 #
 # @accept_encoding
-# 
+#
 
 class accept_encoding(decorator):
     def __call__(self, req, *a, **k):
@@ -61,7 +61,7 @@ class accept_encoding(decorator):
         return res
 
 #
-# @accept_charset 
+# @accept_charset
 #
 
 class accept_charset(decorator):
@@ -78,4 +78,3 @@ class accept_charset(decorator):
             else:
                 raise exc.HTTPNotAcceptable(detail="No supported charset requested")
         return res
-
