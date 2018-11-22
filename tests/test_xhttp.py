@@ -15,55 +15,6 @@ if sys.version_info[0] == 2:
 import xhttp
 
 #
-# TestDecorator
-#
-
-class TestDecorator(unittest.TestCase):
-    class dec(xhttp.utils.decorator):
-        def __call__(self, *a, **k):
-            return 2 * self.func(*a, **k)
-
-    def test_func(self):
-        @TestDecorator.dec
-        def albatross(x):
-            return 2 * x
-        self.assertEqual(albatross(23), 92)
-
-    def test_method(self):
-        class Albatross(object):
-            @TestDecorator.dec
-            def spam(self, x):
-                return 3 * x
-        albatross = Albatross()
-        self.assertEqual(albatross.spam(23), 138)
-
-    def test_classmethod(self):
-        class Albatross(object):
-            @TestDecorator.dec
-            @classmethod
-            def spam(cls, x):
-                return 4 * x
-        self.assertEqual(Albatross.spam(23), 184)
-
-    def test_staticmethod(self):
-        class Albatross(object):
-            @TestDecorator.dec
-            @staticmethod
-            def spam(x):
-                return 5 * x
-        self.assertEqual(Albatross.spam(23), 230)
-
-    def test_func_path(self):
-        class C(object):
-            @TestDecorator.dec
-            def spam(self, x):
-                return 6 * x
-        # XXX Can't really find a real-world scenario where the 2nd argument to __get__ is None!
-        obj = C() 
-        spam = C.__dict__["spam"].__get__(obj)
-        self.assertEqual(spam(obj, 23), 276)
-
-#
 # TestQlist
 #
 
