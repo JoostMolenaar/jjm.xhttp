@@ -35,10 +35,10 @@ def custom_accept(serializers):
                 raise exc.HTTPNotAcceptable()
     return accept
 
-accept = custom_accept({ 
-    "application/xml"       : lambda content: xmlist.serialize(content),
-    "application/xhtml+xml" : lambda content: xmlist.serialize(content),
-    "text/html"             : lambda content: xmlist.serialize(content),
+accept = custom_accept({
+    "application/xml"       : lambda content: xmlist.serialize_xml(content),
+    "application/xhtml+xml" : lambda content: xmlist.serialize_xml(content),
+    "text/html"             : lambda content: xmlist.serialize_html(content),
     "application/json"      : lambda content: json.dumps(obj=content, sort_keys=1, ensure_ascii=False, indent=4),
 })
 
